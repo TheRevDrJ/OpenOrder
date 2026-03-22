@@ -10,7 +10,7 @@ OpenOrder streamlines the weekly task of preparing Sunday worship materials. Ent
 - **Bulletin Generation** — Produces a formatted `.docx` bulletin ready to print and fold
 - **Slide Generation** — *(coming soon)* Produces a `.pptx` presentation with hymn lyrics, backgrounds, and static slides
 - **Dark Mode** — Light and dark themes for late-night sermon prep
-- **Configurable** — Church name, staff, schedule, and branding are driven by config variables (template builder coming soon)
+- **Themeable** — Bulletin layout and styling are driven by themes. Ships with two built-in themes, and the community can create and share more
 
 ## Tech Stack
 
@@ -167,17 +167,27 @@ OpenOrder/
 └── output/                  # (gitignored) Generated files
 ```
 
+## Themes
+
+OpenOrder uses a **theme system** for bulletin layout and styling. Each theme defines how the bulletin looks — fonts, spacing, section order, and formatting.
+
+The app ships with two built-in themes:
+- **Oak Park** — A contemporary layout with centered cover page and olive green accents
+- **Traditional** — *(coming soon)* A classic church bulletin format
+
+Themes live in the `themes/` directory. Community-contributed themes are welcome! If you'd like a custom theme built from your church's existing bulletin, [reach out](https://github.com/TheRevDrJ/OpenOrder/issues) — we're happy to help.
+
 ## Roadmap
 
 - [ ] PowerPoint slide generation
-- [ ] Bulletin template builder (customize layout, fonts, sections)
+- [ ] Theme system with swappable bulletin layouts
 - [ ] Load/edit past weeks from saved JSON
 - [ ] "Bring your own lyrics" for praise songs
 - [ ] Multi-church support with configurable profiles
 
 ## License
 
-TBD
+[GNU Affero General Public License v3.0](LICENSE)
 
 ---
 
