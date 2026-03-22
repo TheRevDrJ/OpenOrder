@@ -307,8 +307,23 @@ def generate_bulletin(order: OrderOfWorship) -> Path:
 
     # Pastoral Prayer & Lord's Prayer
     _p(doc, "PASTORAL PRAYER", size=12, bold=True, before=4, after=0)
-    _p(doc, "THE LORD\u2019S PRAYER (\u201cTrespasses\u201d)",
-       size=12, bold=True, after=4)
+    if order.liturgicalPrayer:
+        prayer_label = order.liturgicalPrayer.title
+        # Extract the variant label for the bulletin
+        if "895" in order.liturgicalPrayer.number:
+            prayer_variant = "Trespasses"
+        elif "896" in order.liturgicalPrayer.number:
+            prayer_variant = "E.U.B."
+        elif "894" in order.liturgicalPrayer.number:
+            prayer_variant = "Ecumenical"
+        else:
+            prayer_variant = ""
+        variant_text = f" (\u201c{prayer_variant}\u201d)" if prayer_variant else ""
+        _p(doc, f"THE LORD\u2019S PRAYER{variant_text}",
+           size=12, bold=True, after=4)
+    else:
+        _p(doc, "THE LORD\u2019S PRAYER",
+           size=12, bold=True, after=4)
 
     # ===== PAGE 3: Worship Order (second half) =====
     _new_section(doc)

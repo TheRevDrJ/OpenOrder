@@ -33,6 +33,9 @@ class OrderOfWorship(BaseModel):
     doxology: HymnRef | None = None
     creed: HymnRef | None = None
     prayerHymn: HymnRef | None = None
+    liturgicalPrayer: HymnRef | None = HymnRef(
+        number="895", title="The Lord's Prayer Former Methodist Text", source="umh-services"
+    )
     closingHymn: HymnRef | None = None
 
     # Sermon

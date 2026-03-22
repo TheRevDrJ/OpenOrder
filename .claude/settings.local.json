@@ -11,7 +11,8 @@
       "Bash(curl -s \"http://localhost:8316/api/hymnal/search?q=347\")",
       "Bash(python -c \"from app.bulletin import generate_bulletin; print\\(''import ok''\\)\")",
       "Bash(gh auth:*)",
-      "Bash(git --version)"
+      "Bash(git --version)",
+      "WebSearch"
     ]
   }
 }

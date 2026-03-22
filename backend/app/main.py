@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse
 from .hymnal import search_hymns, get_hymn, get_hymn_by_ref
 from .models import OrderOfWorship
 from .bulletin import generate_bulletin
+from .slides import generate_slides
 
 app = FastAPI(title="Order of Worship")
 
@@ -118,6 +119,22 @@ def gen_bulletin(service_date: str):
     except PermissionError:
         raise HTTPException(
             409, "The bulletin file is open in another program (probably Word). Close it and try again."
+        )
+    return {"filename": filepath.name}
+
+
+@app.post("/api/generate/slides/{service_date}")
+def gen_slides(service_date: str):
+    path = _service_path(service_date)
+    if not path.exists():
+        raise HTTPException(404, "Service not found — save first")
+    with open(path, "r", encoding="utf-8") as f:
+        data = OrderOfWorship(**json.load(f))
+    try:
+        filepath = generate_slides(data)
+    except PermissionError:
+        raise HTTPException(
+            409, "The slides file is open in another program (probably PowerPoint). Close it and try again."
         )
     return {"filename": filepath.name}
 

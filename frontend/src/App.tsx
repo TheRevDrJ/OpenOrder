@@ -42,6 +42,7 @@ function App() {
   const [pastServices, setPastServices] = useState<{ date: string; filename: string }[]>([])
   const [loadingPast, setLoadingPast] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [generatingSlides, setGeneratingSlides] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [themePreview, setThemePreview] = useState<string | null>(null)
 
@@ -127,31 +128,53 @@ function App() {
     }
   }
 
+  async function handleGenerateSlides() {
+    if (!order.date) return
+    setGeneratingSlides(true)
+    setErrorMsg(null)
+    try {
+      await saveService(order)
+      const res = await fetch(`/api/generate/slides/${order.date}`, { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json()
+        window.open(downloadUrl(data.filename), '_blank')
+      } else {
+        const err = await res.json()
+        setErrorMsg(err.detail || 'Failed to generate slides')
+      }
+    } catch {
+      setErrorMsg('Could not reach the server')
+    } finally {
+      setGeneratingSlides(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border bg-card">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={churchConfig.logo} alt={churchConfig.name} className="w-10 h-10 rounded-full" />
-            <div>
-              <h1 className="text-lg font-bold text-foreground tracking-tight">{churchConfig.name}</h1>
-              <p className="text-xs text-muted-foreground">{churchConfig.tagline}</p>
+            <img src="/openorder-logo.svg" alt="OpenOrder" className="h-10 w-auto" />
+            <div className="text-center">
+              <h1 className="text-2xl font-bold tracking-tight leading-none" style={{ fontFamily: 'Georgia, serif', letterSpacing: '-0.5px' }}>
+                <span style={{ color: '#4A90D9' }}>Open</span>
+                <span style={{ color: '#F5A623' }}>Order</span>
+              </h1>
+              <p className="text-[10px] tracking-[3px] text-muted-foreground/60 uppercase font-medium mt-2 leading-none">
+                Worship. Simplified.
+              </p>
             </div>
           </div>
           <ThemeToggle />
         </div>
       </header>
 
-      {/* Title bar */}
-      <div className="bg-primary text-primary-foreground">
-        <div className="max-w-3xl mx-auto px-4 py-6">
-          <h2 className="text-2xl font-bold">Order of Worship</h2>
-          <p className="text-primary-foreground/70 text-sm mt-1">Prepare this week's service</p>
+      <div className="max-w-3xl mx-auto pt-6 px-4 pb-16">
+        {/* Title bar */}
+        <div className="bg-primary text-primary-foreground rounded-lg px-4 py-2 mb-6">
+          <h2 className="text-xl font-bold">Order of Worship</h2>
         </div>
-      </div>
-
-      <div className="max-w-3xl mx-auto py-6 px-4 pb-16">
         {/* Service Information */}
         <Card className="mb-6 shadow-sm">
           <CardHeader className="pb-4">
@@ -251,17 +274,25 @@ function App() {
               label="Doxology"
               value={order.doxology}
               onChange={v => update('doxology', v)}
+              hint="Typically UMH #94 or #95"
             />
             <HymnPicker
               label="Creed"
               value={order.creed}
               onChange={v => update('creed', v)}
+              hint="Creeds & Affirmations: UMH #880–889"
             />
             <Separator />
             <HymnPicker
               label="Prayer Hymn"
               value={order.prayerHymn}
               onChange={v => update('prayerHymn', v)}
+            />
+            <HymnPicker
+              label="Liturgical Prayer"
+              value={order.liturgicalPrayer}
+              onChange={v => update('liturgicalPrayer', v)}
+              hint="The Lord's Prayer: UMH #894–896"
             />
             <HymnPicker
               label="Closing Hymn"
@@ -335,6 +366,15 @@ function App() {
             className="px-8"
           >
             {generating ? 'Generating...' : 'Generate Bulletin'}
+          </Button>
+
+          <Button
+            onClick={handleGenerateSlides}
+            disabled={generatingSlides || !order.date}
+            variant="secondary"
+            className="px-8"
+          >
+            {generatingSlides ? 'Generating...' : 'Generate Presentation'}
           </Button>
 
           {pastServices.length > 0 && (

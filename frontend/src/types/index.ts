@@ -30,6 +30,7 @@ export interface OrderOfWorship {
   doxology: HymnRef | null
   creed: HymnRef | null
   prayerHymn: HymnRef | null
+  liturgicalPrayer: HymnRef | null
   closingHymn: HymnRef | null
 
   scripture: string
@@ -51,6 +52,7 @@ export function emptyOrder(date: string): OrderOfWorship {
     doxology: null,
     creed: null,
     prayerHymn: null,
+    liturgicalPrayer: { number: '895', title: "The Lord's Prayer Former Methodist Text", source: 'umh-services' },
     closingHymn: null,
     scripture: '',
     sermonTitle: '',
