@@ -69,9 +69,55 @@ Then open **http://localhost:5173** (dev) or **http://localhost:8316** (API).
 
 ## Hymnal Data
 
-**Important**: Hymnal lyrics are copyrighted material and are **not included** in this repository.
+**Important**: Hymnal lyrics are copyrighted material and are **not included** in this repository. You must purchase and license your own hymnal slides.
 
-To use OpenOrder, you need to provide your own hymnal data as JSON files in a `hymnal-json/` directory at the project root. Each hymn should be a JSON file with this structure:
+### Where to Buy Hymnal Slides
+
+The official PowerPoint presentation editions are published by the **United Methodist Publishing House (UMPH)** and available from several retailers (as of March 2026):
+
+**The United Methodist Hymnal — Presentation Edition** (USB flash drive with all hymns, psalter, readings, and orders of worship):
+- [Cokesbury](https://www.cokesbury.com/The-United-Methodist-Hymnal-Presentation-Edition)
+- [Amazon](https://www.amazon.com/United-Methodist-Hymnal-Presentation/dp/1426795378) (ISBN: 9781426795374)
+- [Abingdon Press](https://www.abingdonpress.com/product/9781426795374/)
+- [Christianbook.com](https://www.christianbook.com/the-united-methodist-hymnal-presentation-edition/9781426795374/pd/795371)
+- [Ministry Matters (digital download)](https://www.ministrymatters.com/product/9781630886349)
+
+**The Faith We Sing — Presentation Edition** (USB flash drive with all 284 songs):
+- [Cokesbury](https://www.cokesbury.com/The-Faith-We-Sing-Presentation-Edition)
+- [Amazon](https://www.amazon.com/Faith-We-Sing-Presentation/dp/1426795386) (ISBN: 9781426795381)
+- [Abingdon Press](https://www.abingdonpress.com/product/9781426795381/)
+- [Christianbook.com](https://www.christianbook.com/the-faith-we-sing-presentation-edition/umph-publication/9781426795381/pd/795381)
+
+Individual hymn slides are also available from [Digital Songs and Hymns](https://digitalsongsandhymns.com/collections/united-methodist-hymnal).
+
+Please ensure your usage complies with the applicable license. Additional uses beyond projection in worship may require a blanket license from [OneLicense](https://www.onelicense.net) or [CCLI](https://www.ccli.com).
+
+### Converting Slides to JSON
+
+The purchased hymnal slides come in `.ppt` format (older PowerPoint). OpenOrder needs them converted to JSON. The `scripts/` directory includes tools for this:
+
+**Step 1: Convert `.ppt` to `.pptx`**
+
+The Python `python-pptx` library cannot read the legacy `.ppt` format. Use the included PowerShell script to batch-convert via PowerPoint COM automation (requires Microsoft PowerPoint installed):
+
+```powershell
+# From the project root
+.\scripts\convert_ppt_to_pptx.ps1
+```
+
+This opens each `.ppt` file in PowerPoint and saves it as `.pptx`.
+
+**Step 2: Extract lyrics to JSON**
+
+```bash
+python scripts/extract_lyrics.py
+```
+
+This reads each `.pptx` file and extracts the lyrics text and slide structure into JSON files in the `hymnal-json/` directory.
+
+### JSON Format
+
+Each hymn is stored as a JSON file with this structure:
 
 ```json
 {
@@ -96,8 +142,6 @@ To use OpenOrder, you need to provide your own hymnal data as JSON files in a `h
   ]
 }
 ```
-
-A conversion pipeline is included in `scripts/` to extract lyrics from existing `.pptx` hymnal files.
 
 ## Project Structure
 
