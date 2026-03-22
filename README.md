@@ -48,22 +48,9 @@ npm install
 cd ..
 ```
 
-### 4. Set the UMH environment variable
+### 4. Add your hymnal data
 
-OpenOrder expects a `UMH` environment variable pointing to your hymnal resources directory. This directory should contain:
-
-```
-%UMH%/
-  OakParkSlides/          # Static slide images (Background.png, etc.)
-  Hymnal/
-    Hymns by Number/      # Hymn .pptx files named like "378 - Amazing Grace.pptx"
-    Other General Services and Acts of Worship/
-```
-
-On Windows:
-```
-setx UMH "D:\path\to\your\hymnal\directory"
-```
+See [Hymnal Data](#hymnal-data) below for details on providing your own lyrics.
 
 ### 5. Run the app
 
