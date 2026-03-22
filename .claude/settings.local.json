@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash",
+      "mcp__Claude_Preview__preview_start",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Bash(curl -s http://localhost:5173/api/health)",
+      "Bash(npx tsc:*)",
+      "Bash(curl -s http://localhost:5173/src/main.tsx)",
+      "Bash(curl -s \"http://localhost:8316/api/hymnal/search?q=347\")",
+      "Bash(python -c \"from app.bulletin import generate_bulletin; print\\(''import ok''\\)\")",
+      "Bash(gh auth:*)",
+      "Bash(git --version)"
+    ]
+  }
+}
