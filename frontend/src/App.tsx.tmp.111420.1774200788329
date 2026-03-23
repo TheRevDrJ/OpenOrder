@@ -1,0 +1,383 @@
+import { useState, useEffect, useRef } from 'react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
+import { HymnPicker } from '@/components/HymnPicker'
+import { ThemeToggle } from '@/components/ThemeToggle'
+import { getHealth, saveService, loadService, listServices, uploadThemeImage, downloadUrl } from '@/lib/api'
+import { churchConfig } from '@/lib/church-config'
+import type { OrderOfWorship, StaffMember } from '@/types'
+import { emptyOrder } from '@/types'
+
+function StaffField({ label, value, onChange }: {
+  label: string
+  value: StaffMember
+  onChange: (v: StaffMember) => void
+}) {
+  return (
+    <div>
+      <Label className="text-sm font-medium mb-1.5 block text-muted-foreground">{label}</Label>
+      <div className="grid grid-cols-2 gap-2">
+        <Input
+          placeholder="Name"
+          value={value.name}
+          onChange={e => onChange({ ...value, name: e.target.value })}
+        />
+        <Input
+          placeholder="Title"
+          value={value.title}
+          onChange={e => onChange({ ...value, title: e.target.value })}
+        />
+      </div>
+    </div>
+  )
+}
+
+function App() {
+  const [order, setOrder] = useState<OrderOfWorship>(emptyOrder(''))
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [pastServices, setPastServices] = useState<{ date: string; filename: string }[]>([])
+  const [loadingPast, setLoadingPast] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [themePreview, setThemePreview] = useState<string | null>(null)
+
+  useEffect(() => {
+    getHealth().then(data => {
+      setOrder(prev => ({ ...prev, date: data.nextSunday }))
+      loadService(data.nextSunday)
+        .then(existing => {
+          setOrder({ ...emptyOrder(data.nextSunday), ...existing })
+          if (existing.themeImageFilename) {
+            setThemePreview(downloadUrl(existing.themeImageFilename))
+          }
+        })
+        .catch(() => {})
+    })
+    listServices().then(setPastServices)
+  }, [])
+
+  function update<K extends keyof OrderOfWorship>(key: K, value: OrderOfWorship[K]) {
+    setOrder(prev => ({ ...prev, [key]: value }))
+    setSaved(false)
+  }
+
+  async function handleSave() {
+    if (!order.date) return
+    setSaving(true)
+    try {
+      await saveService(order)
+      setSaved(true)
+      const services = await listServices()
+      setPastServices(services)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleLoadDate(date: string) {
+    setLoadingPast(true)
+    try {
+      const data = await loadService(date)
+      setOrder({ ...emptyOrder(date), ...data })
+      if (data.themeImageFilename) {
+        setThemePreview(downloadUrl(data.themeImageFilename))
+      } else {
+        setThemePreview(null)
+      }
+    } catch {
+      setOrder(emptyOrder(date))
+      setThemePreview(null)
+    } finally {
+      setLoadingPast(false)
+    }
+  }
+
+  async function handleThemeImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !order.date) return
+    const filename = await uploadThemeImage(order.date, file)
+    update('themeImageFilename', filename)
+    setThemePreview(URL.createObjectURL(file))
+  }
+
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  async function handleGenerate() {
+    if (!order.date) return
+    setGenerating(true)
+    setErrorMsg(null)
+    try {
+      await saveService(order)
+      const res = await fetch(`/api/generate/bulletin/${order.date}`, { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json()
+        window.open(downloadUrl(data.filename), '_blank')
+      } else {
+        const err = await res.json()
+        setErrorMsg(err.detail || 'Failed to generate bulletin')
+      }
+    } catch {
+      setErrorMsg('Could not reach the server')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b border-border bg-card">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img src="/openorder-logo.svg" alt="OpenOrder" className="h-10 w-auto" />
+            <div className="text-center">
+              <h1 className="text-2xl font-bold tracking-tight leading-none" style={{ fontFamily: 'Georgia, serif', letterSpacing: '-0.5px' }}>
+                <span style={{ color: '#4A90D9' }}>Open</span>
+                <span style={{ color: '#F5A623' }}>Order</span>
+              </h1>
+              <p className="text-[10px] tracking-[3px] text-muted-foreground/60 uppercase font-medium -mt-0.5 leading-none">
+                Worship. Simplified.
+              </p>
+            </div>
+          </div>
+          <ThemeToggle />
+        </div>
+      </header>
+
+      {/* Title bar */}
+      <div className="bg-primary text-primary-foreground">
+        <div className="max-w-3xl mx-auto px-4 py-2">
+          <h2 className="text-xl font-bold">Order of Worship</h2>
+        </div>
+      </div>
+
+      <div className="max-w-3xl mx-auto py-6 px-4 pb-16">
+        {/* Service Information */}
+        <Card className="mb-6 shadow-sm">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-primary">Service Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="date" className="mb-1.5 block">Date</Label>
+                <Input
+                  id="date"
+                  type="date"
+                  value={order.date}
+                  onChange={e => {
+                    update('date', e.target.value)
+                    handleLoadDate(e.target.value)
+                  }}
+                />
+              </div>
+              <div>
+                <Label htmlFor="serviceTitle" className="mb-1.5 block">Service Title / Season</Label>
+                <Input
+                  id="serviceTitle"
+                  placeholder="e.g., Lent"
+                  value={order.serviceTitle}
+                  onChange={e => update('serviceTitle', e.target.value)}
+                />
+              </div>
+            </div>
+
+            <Separator />
+
+            <StaffField
+              label="Speaker"
+              value={order.speaker}
+              onChange={v => update('speaker', v)}
+            />
+            <StaffField
+              label="Worship Leader"
+              value={order.worshipLeader}
+              onChange={v => update('worshipLeader', v)}
+            />
+          </CardContent>
+        </Card>
+
+        {/* Theme Image */}
+        <Card className="mb-6 shadow-sm">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-primary">Theme Image</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div
+              className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {themePreview ? (
+                <img src={themePreview} alt="Theme" className="max-h-48 mx-auto rounded" />
+              ) : (
+                <div className="text-muted-foreground">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-10 h-10 mx-auto mb-2 opacity-50">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                  </svg>
+                  <p className="text-sm">Click to upload this week's theme image</p>
+                </div>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleThemeImage}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Hymns */}
+        <Card className="mb-6 shadow-sm">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-primary">Hymns</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 pb-8">
+            <HymnPicker
+              label="Opening Hymn"
+              value={order.praiseHymn1}
+              onChange={v => update('praiseHymn1', v)}
+            />
+            <HymnPicker
+              label="Offertory Hymn"
+              value={order.praiseHymn2}
+              onChange={v => update('praiseHymn2', v)}
+            />
+            <Separator />
+            <HymnPicker
+              label="Doxology"
+              value={order.doxology}
+              onChange={v => update('doxology', v)}
+              hint="Typically UMH #94 or #95"
+            />
+            <HymnPicker
+              label="Creed"
+              value={order.creed}
+              onChange={v => update('creed', v)}
+              hint="Creeds & Affirmations: UMH #880–889"
+            />
+            <Separator />
+            <HymnPicker
+              label="Prayer Hymn"
+              value={order.prayerHymn}
+              onChange={v => update('prayerHymn', v)}
+            />
+            <HymnPicker
+              label="Liturgical Prayer"
+              value={order.liturgicalPrayer}
+              onChange={v => update('liturgicalPrayer', v)}
+              hint="The Lord's Prayer: UMH #894–896"
+            />
+            <HymnPicker
+              label="Closing Hymn"
+              value={order.closingHymn}
+              onChange={v => update('closingHymn', v)}
+            />
+          </CardContent>
+        </Card>
+
+        {/* Sermon */}
+        <Card className="mb-6 shadow-sm">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-primary">Sermon</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="scripture" className="mb-1.5 block">Scripture</Label>
+                <Input
+                  id="scripture"
+                  placeholder="e.g., Matthew 4:1-11"
+                  value={order.scripture}
+                  onChange={e => update('scripture', e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="speakerShortName" className="mb-1.5 block">Speaker (short name)</Label>
+                <Input
+                  id="speakerShortName"
+                  placeholder="e.g., Dr. Mellette"
+                  value={order.speakerShortName}
+                  onChange={e => update('speakerShortName', e.target.value)}
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="sermonTitle" className="mb-1.5 block">Sermon Title</Label>
+              <Input
+                id="sermonTitle"
+                placeholder="e.g., The Shadow Mission"
+                value={order.sermonTitle}
+                onChange={e => update('sermonTitle', e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="sermonSubtitle" className="mb-1.5 block">Subtitle (optional)</Label>
+              <Input
+                id="sermonSubtitle"
+                placeholder="e.g., (Part 2)"
+                value={order.sermonSubtitle}
+                onChange={e => update('sermonSubtitle', e.target.value)}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Actions */}
+        <div className="flex items-center gap-4">
+          <Button
+            onClick={handleSave}
+            disabled={saving || !order.date}
+            className="px-8"
+          >
+            {saving ? 'Saving...' : saved ? 'Saved' : 'Save'}
+          </Button>
+
+          <Button
+            onClick={handleGenerate}
+            disabled={generating || !order.date}
+            variant="secondary"
+            className="px-8"
+          >
+            {generating ? 'Generating...' : 'Generate Bulletin'}
+          </Button>
+
+          {pastServices.length > 0 && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground ml-auto">
+              <span>Load past:</span>
+              <select
+                className="border border-input rounded-md px-2 py-1.5 bg-background text-sm text-foreground"
+                value=""
+                onChange={e => {
+                  if (e.target.value) handleLoadDate(e.target.value)
+                }}
+                disabled={loadingPast}
+              >
+                <option value="">Select a date...</option>
+                {pastServices.map(s => (
+                  <option key={s.date} value={s.date}>{s.date}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        {errorMsg && (
+          <div className="mt-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm flex items-center justify-between">
+            <span>{errorMsg}</span>
+            <button onClick={() => setErrorMsg(null)} className="ml-4 hover:opacity-70">✕</button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default App

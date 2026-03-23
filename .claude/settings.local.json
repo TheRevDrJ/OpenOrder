@@ -12,7 +12,8 @@
       "Bash(python -c \"from app.bulletin import generate_bulletin; print\\(''import ok''\\)\")",
       "Bash(gh auth:*)",
       "Bash(git --version)",
-      "WebSearch"
+      "WebSearch",
+      "WebFetch(domain:bible.helloao.org)"
     ]
   }
 }

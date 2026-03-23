@@ -119,9 +119,9 @@ export function HymnPicker({ label, value, onChange, hint }: HymnPickerProps) {
               </svg>
             </button>
             {showHint && (
-              <div className="absolute z-50 left-1/2 -translate-x-1/2 bottom-full mb-1.5 px-3 py-1.5 text-xs bg-popover text-popover-foreground border border-border rounded-md shadow-md whitespace-nowrap">
+              <div className="absolute z-50 left-0 bottom-full mb-1.5 px-3 py-1.5 text-xs bg-popover text-popover-foreground border border-border rounded-md shadow-md whitespace-nowrap">
                 {hint}
-                <div className="absolute left-1/2 -translate-x-1/2 top-full w-2 h-2 bg-popover border-r border-b border-border rotate-45 -mt-1" />
+                <div className="absolute left-3 top-full w-2 h-2 bg-popover border-r border-b border-border rotate-45 -mt-1" />
               </div>
             )}
           </div>
