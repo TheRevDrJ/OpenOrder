@@ -34,6 +34,9 @@ desktop.ini
 # Hymnal lyrics data (copyrighted material — do NOT commit)
 hymnal-json/
 
+# Scripture cache (user-fetched Bible text — per-user data)
+scripture-cache/
+
 # Source hymnal files (large binary)
 *.ppt
 *.pptx

@@ -12,6 +12,7 @@ from .hymnal import search_hymns, get_hymn, get_hymn_by_ref
 from .models import OrderOfWorship
 from .bulletin import generate_bulletin
 from .slides import generate_slides
+from .scripture import fetch_scripture, get_available_translations, parse_reference
 
 app = FastAPI(title="Order of Worship")
 
@@ -137,6 +138,26 @@ def gen_slides(service_date: str):
             409, "The slides file is open in another program (probably PowerPoint). Close it and try again."
         )
     return {"filename": filepath.name}
+
+
+# --- Scripture ---
+
+@app.get("/api/scripture/translations")
+def scripture_translations():
+    return get_available_translations()
+
+
+@app.get("/api/scripture/fetch")
+def scripture_fetch(ref: str = "", translation: str = "BSB"):
+    if not ref.strip():
+        raise HTTPException(400, "Scripture reference is required")
+    parsed = parse_reference(ref)
+    if not parsed:
+        raise HTTPException(400, f"Could not parse scripture reference: {ref}")
+    data = fetch_scripture(ref, translation)
+    if not data:
+        raise HTTPException(404, f"Could not fetch scripture for {ref} ({translation})")
+    return data
 
 
 # --- File downloads ---

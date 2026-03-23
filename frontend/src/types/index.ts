@@ -34,6 +34,7 @@ export interface OrderOfWorship {
   closingHymn: HymnRef | null
 
   scripture: string
+  scriptureTranslation: string
   sermonTitle: string
   sermonSubtitle: string
   speakerShortName: string
@@ -55,6 +56,7 @@ export function emptyOrder(date: string): OrderOfWorship {
     liturgicalPrayer: { number: '895', title: "The Lord's Prayer Former Methodist Text", source: 'umh-services' },
     closingHymn: null,
     scripture: '',
+    scriptureTranslation: 'BSB',
     sermonTitle: '',
     sermonSubtitle: '',
     speakerShortName: 'Dr. Mellette',

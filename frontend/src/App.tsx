@@ -106,6 +106,46 @@ function App() {
   }
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [scripturePreview, setScripturePreview] = useState<{verses: {number: number, text: string}[], translation_name: string} | null>(null)
+  const [loadingScripture, setLoadingScripture] = useState(false)
+  const scriptureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  async function fetchScripturePreview(ref: string, translation: string) {
+    if (!ref.trim()) {
+      setScripturePreview(null)
+      return
+    }
+    setLoadingScripture(true)
+    try {
+      const res = await fetch(`/api/scripture/fetch?ref=${encodeURIComponent(ref)}&translation=${encodeURIComponent(translation)}`)
+      if (res.ok) {
+        const data = await res.json()
+        setScripturePreview(data)
+      } else {
+        setScripturePreview(null)
+      }
+    } catch {
+      setScripturePreview(null)
+    } finally {
+      setLoadingScripture(false)
+    }
+  }
+
+  function handleScriptureChange(ref: string) {
+    update('scripture', ref)
+    // Debounce the preview fetch
+    if (scriptureTimerRef.current) clearTimeout(scriptureTimerRef.current)
+    scriptureTimerRef.current = setTimeout(() => {
+      fetchScripturePreview(ref, order.scriptureTranslation)
+    }, 600)
+  }
+
+  function handleTranslationChange(translation: string) {
+    update('scriptureTranslation', translation)
+    if (order.scripture.trim()) {
+      fetchScripturePreview(order.scripture, translation)
+    }
+  }
 
   async function handleGenerate() {
     if (!order.date) return
@@ -308,15 +348,29 @@ function App() {
             <CardTitle className="text-primary">Sermon</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <Label htmlFor="scripture" className="mb-1.5 block">Scripture</Label>
                 <Input
                   id="scripture"
                   placeholder="e.g., Matthew 4:1-11"
                   value={order.scripture}
-                  onChange={e => update('scripture', e.target.value)}
+                  onChange={e => handleScriptureChange(e.target.value)}
                 />
+              </div>
+              <div>
+                <Label htmlFor="translation" className="mb-1.5 block">Translation</Label>
+                <select
+                  id="translation"
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  value={order.scriptureTranslation}
+                  onChange={e => handleTranslationChange(e.target.value)}
+                >
+                  <option value="BSB">BSB — Berean Standard Bible</option>
+                  <option value="eng_kjv">KJV — King James Version</option>
+                  <option value="eng_asv">ASV — American Standard Version</option>
+                  <option value="ENGWEBP">WEB — World English Bible</option>
+                </select>
               </div>
               <div>
                 <Label htmlFor="speakerShortName" className="mb-1.5 block">Speaker (short name)</Label>
@@ -328,6 +382,24 @@ function App() {
                 />
               </div>
             </div>
+
+            {/* Scripture preview */}
+            {loadingScripture && (
+              <div className="text-sm text-muted-foreground italic">Fetching scripture...</div>
+            )}
+            {scripturePreview && !loadingScripture && (
+              <div className="bg-muted/50 rounded-lg p-3 text-sm max-h-48 overflow-y-auto border border-border">
+                <div className="font-medium text-xs text-muted-foreground mb-2">
+                  {scripturePreview.translation_name} — {scripturePreview.verses.length} verses, will generate {Math.ceil(scripturePreview.verses.length / 2)} slides
+                </div>
+                {scripturePreview.verses.map((v: {number: number, text: string}) => (
+                  <p key={v.number} className="mb-1">
+                    <span className="font-bold text-primary">{v.number}</span>{' '}
+                    {v.text}
+                  </p>
+                ))}
+              </div>
+            )}
             <div>
               <Label htmlFor="sermonTitle" className="mb-1.5 block">Sermon Title</Label>
               <Input

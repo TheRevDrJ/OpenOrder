@@ -10,6 +10,7 @@ from pptx.enum.text import PP_ALIGN, MSO_AUTO_SIZE
 from pptx.dml.color import RGBColor
 
 from .models import OrderOfWorship, HymnRef
+from .scripture import fetch_scripture
 
 RESOURCES = Path(__file__).parent.parent.parent / "resources"
 HYMNAL_DIR = Path(__file__).parent.parent.parent / "hymnal-json"
@@ -531,6 +532,132 @@ def _add_hymn_slides(prs, ref: HymnRef, bg_type: str = 'hymn'):
                 _create_hymn_continuation_slide(prs, slide_info)
 
 
+def _create_scripture_first_slide(prs, reference: str, translation_name: str, slide_data: dict):
+    """Create the first scripture slide with reference title and verse text."""
+    slide = prs.slides.add_slide(prs.slide_layouts[6])  # Blank
+
+    # Title: scripture reference (e.g., "Matthew 4:1-11")
+    title_box = slide.shapes.add_textbox(
+        TEXT_LEFT, TITLE_TOP, TEXT_WIDTH, Emu(500_000)
+    )
+    title_box.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+    title_box.text_frame.margin_left = MARGIN_LR
+    title_box.text_frame.margin_right = MARGIN_LR
+    title_box.text_frame.margin_top = MARGIN_TB
+    title_box.text_frame.margin_bottom = MARGIN_TB
+
+    p = title_box.text_frame.paragraphs[0]
+    p.text = reference
+    p.font.name = FONT_NAME
+    p.font.size = Pt(40)
+    p.font.color.rgb = TITLE_COLOR
+    _set_paragraph_spacing(p, 50)
+    _add_shadow(title_box)
+
+    # Translation badge in gray box
+    trans_box = slide.shapes.add_textbox(
+        NUM_BOX_LEFT, TITLE_TOP, NUM_BOX_WIDTH, NUM_BOX_HEIGHT
+    )
+    trans_box.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+    trans_box.fill.solid()
+    trans_box.fill.fore_color.rgb = NUMBER_BG_COLOR
+    p = trans_box.text_frame.paragraphs[0]
+    p.text = translation_name
+    p.font.name = FONT_NAME
+    p.font.size = Pt(36)
+    p.font.color.rgb = WHITE
+    p.alignment = PP_ALIGN.CENTER
+    _add_shadow(trans_box)
+
+    # Verse text
+    if slide_data['lines']:
+        lyrics_box = slide.shapes.add_textbox(
+            TEXT_LEFT, Emu(1_400_000), TEXT_WIDTH, Emu(500_000)
+        )
+        lyrics_box.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+        lyrics_box.text_frame.margin_left = MARGIN_LR
+        lyrics_box.text_frame.margin_right = MARGIN_LR
+        lyrics_box.text_frame.margin_top = MARGIN_TB
+        lyrics_box.text_frame.margin_bottom = MARGIN_TB
+
+        p = lyrics_box.text_frame.paragraphs[0]
+        lyrics_text = '\x0b'.join(slide_data['lines'])
+        p.text = lyrics_text
+        p.font.name = FONT_NAME
+        p.font.size = Pt(44)
+        _set_paragraph_spacing(p, 50)
+        _add_shadow(lyrics_box)
+
+    # Background
+    _add_hymn_background(slide)
+    return slide
+
+
+def _create_scripture_continuation_slide(prs, slide_data: dict, is_last: bool = False,
+                                          translation_name: str = ""):
+    """Create a scripture continuation slide."""
+    slide = prs.slides.add_slide(prs.slide_layouts[6])  # Blank
+
+    if slide_data['lines']:
+        num_lines = len(slide_data['lines'])
+        if num_lines <= 3:
+            top = Emu(1_800_000)
+        elif num_lines <= 5:
+            top = Emu(1_200_000)
+        else:
+            top = Emu(800_000)
+
+        lyrics_box = slide.shapes.add_textbox(
+            TEXT_LEFT, top, TEXT_WIDTH, Emu(500_000)
+        )
+        lyrics_box.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+        lyrics_box.text_frame.margin_left = MARGIN_LR
+        lyrics_box.text_frame.margin_right = MARGIN_LR
+        lyrics_box.text_frame.margin_top = MARGIN_TB
+        lyrics_box.text_frame.margin_bottom = MARGIN_TB
+
+        p = lyrics_box.text_frame.paragraphs[0]
+        lyrics_text = '\x0b'.join(slide_data['lines'])
+        p.text = lyrics_text
+        p.font.name = FONT_NAME
+        p.font.size = Pt(44)
+        _set_paragraph_spacing(p, 50)
+
+        # Add attribution on last slide
+        if is_last and translation_name:
+            p2 = lyrics_box.text_frame.add_paragraph()
+            p2.text = f"— {translation_name}"
+            p2.font.name = FONT_NAME
+            p2.font.size = Pt(18)
+            p2.font.color.rgb = TITLE_COLOR
+            p2.alignment = PP_ALIGN.RIGHT
+
+        _add_shadow(lyrics_box)
+
+    _add_hymn_background(slide)
+    return slide
+
+
+def _add_scripture_slides(prs, reference: str, translation: str):
+    """Add scripture reading slides to the presentation."""
+    if not reference or not reference.strip():
+        return
+
+    data = fetch_scripture(reference, translation)
+    if not data or not data.get('slides'):
+        return
+
+    slides = data['slides']
+    trans_name = data.get('translation_name', translation)
+
+    for i, slide_data in enumerate(slides):
+        is_last = (i == len(slides) - 1)
+        if i == 0:
+            _create_scripture_first_slide(prs, reference, trans_name, slide_data)
+        else:
+            _create_scripture_continuation_slide(prs, slide_data, is_last, trans_name)
+
+
 def _add_theme_slide(prs, theme_image_path: Path | None):
     """Add a theme/separator slide using the uploaded theme image."""
     if theme_image_path and theme_image_path.exists():
@@ -593,6 +720,11 @@ def generate_slides(order: OrderOfWorship) -> Path:
 
     # 11. Theme slide (separator)
     _add_theme_slide(prs, theme_path)
+
+    # 11.5. Scripture reading
+    if order.scripture:
+        _add_scripture_slides(prs, order.scripture, order.scriptureTranslation)
+        _add_theme_slide(prs, theme_path)
 
     # 12. Prayer Hymn
     if order.prayerHymn:

@@ -40,6 +40,7 @@ class OrderOfWorship(BaseModel):
 
     # Sermon
     scripture: str = ""
+    scriptureTranslation: str = "BSB"
     sermonTitle: str = ""
     sermonSubtitle: str = ""
     speakerShortName: str = cfg.DEFAULT_SPEAKER_SHORT

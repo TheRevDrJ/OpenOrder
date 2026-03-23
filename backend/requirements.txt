@@ -3,3 +3,5 @@ uvicorn>=0.32.0
 python-docx>=1.1.0
 python-pptx>=1.0.0
 python-multipart>=0.0.9
+pythonbible>=0.15.0
+httpx>=0.28.0
