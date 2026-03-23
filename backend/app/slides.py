@@ -261,6 +261,22 @@ def _add_source_badge(slide, label: str):
     # No border
     shape.line.fill.background()
 
+    # Dark drop shadow on the badge
+    from lxml import etree as _et
+    from pptx.oxml.ns import qn as _qn
+    _spPr = shape._element.spPr
+    _effectLst = _et.SubElement(_spPr, _qn('a:effectLst'))
+    _outerShdw = _et.SubElement(_effectLst, _qn('a:outerShdw'))
+    _outerShdw.set('dist', '50800')     # ~4pt offset
+    _outerShdw.set('dir', '5400000')    # straight down
+    _outerShdw.set('blurRad', '76200')  # ~6pt blur
+    _outerShdw.set('algn', 'ctr')
+    _outerShdw.set('rotWithShape', '0')
+    _srgb = _et.SubElement(_outerShdw, _qn('a:srgbClr'))
+    _srgb.set('val', '000000')
+    _alpha = _et.SubElement(_srgb, _qn('a:alpha'))
+    _alpha.set('val', '50000')  # 50% opacity black
+
     # Text
     tf = shape.text_frame
     tf.word_wrap = False
@@ -279,37 +295,125 @@ def _add_source_badge(slide, label: str):
     spc.set('val', '200')  # 2pt letter spacing
 
 
-def _create_hymn_first_slide(prs, slide_info: dict):
-    """Create a hymn's first slide with title, attribution, lyrics, background, and source badge."""
-    slide = prs.slides.add_slide(prs.slide_layouts[6])  # Blank
+def _add_title_pill(slide, title_text: str, top=None, font_size=48):
+    """Add a title in a themed pill shape — same style as source badge but for titles."""
+    from pptx.oxml.ns import qn
+    from lxml import etree
+    from pptx.enum.shapes import MSO_SHAPE
 
-    # 1. Title text box (back to original position)
-    title_box = slide.shapes.add_textbox(
-        TEXT_LEFT, TITLE_TOP, TEXT_WIDTH, Emu(800_000)
+    if top is None:
+        top = TITLE_TOP
+
+    # Pill stretches most of the slide width, centered
+    pill_margin = Emu(800_000)  # ~0.87" each side
+    pill_left = pill_margin
+    pill_width = SLIDE_WIDTH - (pill_margin * 2)
+
+    # Balanced line splitting for long titles (split at word boundary nearest midpoint)
+    chars_per_line = 28 if font_size >= 48 else 35 if font_size >= 40 else 45
+    if len(title_text) > chars_per_line:
+        words = title_text.split()
+        if len(words) > 2:
+            best_split = None
+            best_diff = float('inf')
+            running = ''
+            for i, word in enumerate(words[:-1]):
+                running += ('' if i == 0 else ' ') + word
+                rest = ' '.join(words[i + 1:])
+                diff = abs(len(running) - len(rest))
+                if diff < best_diff:
+                    best_diff = diff
+                    best_split = (running, rest)
+            if best_split:
+                title_text = best_split[0] + '\n' + best_split[1]
+
+    # Calculate line count for manual height (AutoShape ignores auto_size)
+    if '\n' in title_text:
+        num_lines = sum(1 + max(0, len(part) // chars_per_line) for part in title_text.split('\n'))
+    else:
+        num_lines = 1 + max(0, len(title_text) // chars_per_line)
+
+    line_height = Emu(730_000)   # ~0.8" per line at 48pt
+    padding = Emu(250_000)       # top + bottom padding
+    pill_height = (line_height * num_lines) + padding
+
+    shape = slide.shapes.add_shape(
+        MSO_SHAPE.ROUNDED_RECTANGLE,
+        pill_left, top, pill_width, pill_height
     )
-    title_box.text_frame.word_wrap = True
-    title_box.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
-    title_box.text_frame.margin_left = MARGIN_LR
-    title_box.text_frame.margin_right = MARGIN_LR
-    title_box.text_frame.margin_top = MARGIN_TB
-    title_box.text_frame.margin_bottom = MARGIN_TB
 
-    p = title_box.text_frame.paragraphs[0]
+    # Rounded corners
+    spPr = shape._element.spPr
+    prstGeom = spPr.find(qn('a:prstGeom'))
+    if prstGeom is not None:
+        avLst = prstGeom.find(qn('a:avLst'))
+        if avLst is None:
+            avLst = etree.SubElement(prstGeom, qn('a:avLst'))
+        gd = etree.SubElement(avLst, qn('a:gd'))
+        gd.set('name', 'adj')
+        gd.set('fmla', 'val 25000')  # slightly less round than badge
+
+    # Same semi-transparent fill as badge
+    fill = shape.fill
+    fill.solid()
+    fill.fore_color.rgb = THEME_BADGE_BG
+    solidFill = spPr.find(qn('a:solidFill'))
+    if solidFill is None:
+        solidFill = shape._element.spPr.find('.//' + qn('a:solidFill'))
+    if solidFill is not None:
+        srgbClr = solidFill.find(qn('a:srgbClr'))
+        if srgbClr is not None:
+            alpha = etree.SubElement(srgbClr, qn('a:alpha'))
+            alpha.set('val', '70000')
+
+    # No border
+    shape.line.fill.background()
+
+    # Dark drop shadow
+    _effectLst = etree.SubElement(spPr, qn('a:effectLst'))
+    _outerShdw = etree.SubElement(_effectLst, qn('a:outerShdw'))
+    _outerShdw.set('dist', '50800')
+    _outerShdw.set('dir', '5400000')
+    _outerShdw.set('blurRad', '76200')
+    _outerShdw.set('algn', 'ctr')
+    _outerShdw.set('rotWithShape', '0')
+    _srgb = etree.SubElement(_outerShdw, qn('a:srgbClr'))
+    _srgb.set('val', '000000')
+    _alpha = etree.SubElement(_srgb, qn('a:alpha'))
+    _alpha.set('val', '50000')
+
+    # Text (no auto_size — AutoShapes ignore SHAPE_TO_FIT_TEXT)
+    tf = shape.text_frame
+    tf.word_wrap = True
+    tf.margin_left = Emu(182_880)   # ~0.2"
+    tf.margin_right = Emu(182_880)
+    tf.margin_top = Emu(91_440)     # ~0.1"
+    tf.margin_bottom = Emu(91_440)
+    p = tf.paragraphs[0]
     p.alignment = PP_ALIGN.CENTER
-    title_text = slide_info['title']
-    # Split long titles at comma for natural line break
-    if len(title_text) > 30 and ',' in title_text:
-        comma_idx = title_text.index(',')
-        title_text = title_text[:comma_idx + 1] + '\n' + title_text[comma_idx + 1:].strip()
     p.text = title_text
     p.font.name = THEME_FONT
-    p.font.size = Pt(48)
-    p.font.color.rgb = THEME_TITLE_COLOR
-    _set_paragraph_spacing(p, 50)
-    _add_shadow(title_box)
+    p.font.size = Pt(font_size)
+    p.font.color.rgb = THEME_BADGE_FG
+    p.font.bold = True
+
+    return shape, num_lines
+
+
+def _create_hymn_first_slide(prs, slide_info: dict):
+    """Create a hymn's first slide with title pill, attribution, lyrics, background, and source badge."""
+    slide = prs.slides.add_slide(prs.slide_layouts[6])  # Blank
+
+    # 1. Title pill
+    title_text = slide_info['title']
+    _, title_lines = _add_title_pill(slide, title_text, top=TITLE_TOP, font_size=48)
+
+    # Dynamic offset: base + extra per line beyond 1
+    extra_lines = max(0, title_lines - 1)
+    line_offset = Emu(730_000)  # ~0.8" per extra title line
 
     # 3. Attribution line (if present)
-    attr_top = Emu(1_200_000)  # ~1.3 inches
+    attr_top = Emu(1_200_000) + (line_offset * extra_lines)
     if slide_info['attribution']:
         attr_box = slide.shapes.add_textbox(
             TEXT_LEFT, attr_top, TEXT_WIDTH, Emu(400_000)
@@ -322,9 +426,9 @@ def _create_hymn_first_slide(prs, slide_info: dict):
         p.font.color.rgb = THEME_TITLE_COLOR
         _set_paragraph_spacing(p, 50)
         _add_shadow(attr_box)
-        lyrics_top = Emu(1_700_000)  # below attribution
+        lyrics_top = Emu(1_700_000) + (line_offset * extra_lines)
     else:
-        lyrics_top = Emu(1_400_000)
+        lyrics_top = Emu(1_400_000) + (line_offset * extra_lines)
 
     # 4. Lyrics text box
     if slide_info['lyrics']:
@@ -342,7 +446,18 @@ def _create_hymn_first_slide(prs, slide_info: dict):
         lyrics_text = '\x0b'.join(slide_info['lyrics'])
         p.text = lyrics_text
         p.font.name = THEME_FONT
-        p.font.size = Pt(50)
+
+        # Scale font for first slide based on available space
+        num_lyric_lines = len(slide_info['lyrics'])
+        available = SLIDE_HEIGHT - lyrics_top - Emu(600_000)  # reserve for badge
+        line_space = available // max(num_lyric_lines, 1)
+        if line_space >= Emu(685_800):      # ~0.75" per line → 50pt
+            p.font.size = Pt(50)
+        elif line_space >= Emu(594_360):    # ~0.65" → 44pt
+            p.font.size = Pt(44)
+        else:                                # tight → 38pt
+            p.font.size = Pt(38)
+
         _set_paragraph_spacing(p, 50)
         _add_shadow(lyrics_box)
 
@@ -411,33 +526,18 @@ def _create_hymn_continuation_slide(prs, slide_info: dict):
 
 
 def _create_liturgy_first_slide(prs, slide_info: dict, bg_path: Path):
-    """Create a liturgy first slide (creed/Lord's Prayer) with title, text, and source badge."""
+    """Create a liturgy first slide (creed/Lord's Prayer) with title pill, text, and source badge."""
     slide = prs.slides.add_slide(prs.slide_layouts[6])
 
-    # Title
-    title_box = slide.shapes.add_textbox(
-        TEXT_LEFT, TITLE_TOP, TEXT_WIDTH, Emu(800_000)
-    )
-    title_box.text_frame.word_wrap = True
-    title_box.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
-    p = title_box.text_frame.paragraphs[0]
-    p.alignment = PP_ALIGN.CENTER
+    # Title pill
     title_text = slide_info['title'].upper() if THEME_LITURGY_UPPERCASE else slide_info['title']
-    if len(title_text) > 30 and ',' in title_text:
-        comma_idx = title_text.index(',')
-        title_text = title_text[:comma_idx + 1] + '\n' + title_text[comma_idx + 1:].strip()
-    p.text = title_text
-    p.font.name = THEME_FONT
-    p.font.size = Pt(48)
-    p.font.color.rgb = THEME_TITLE_COLOR
-    _set_paragraph_spacing(p, 50)
-    _add_shadow(title_box)
+    _, title_lines = _add_title_pill(slide, title_text, top=TITLE_TOP, font_size=48)
+    extra_lines = max(0, title_lines - 1)
+    line_offset = Emu(730_000)
 
     # Lyrics/text
     if slide_info['lyrics']:
-        # Push lyrics down if title wrapped to two lines
-        has_two_line_title = '\n' in title_text
-        lyrics_top = Emu(2_000_000) if has_two_line_title else Emu(1_400_000)
+        lyrics_top = Emu(1_400_000) + (line_offset * extra_lines)
         lyrics_box = slide.shapes.add_textbox(
             Emu(1_828_800), lyrics_top,       # ~2.0 inches left
             Emu(8_534_400), Emu(500_000)      # ~9.333 inches wide
@@ -446,9 +546,19 @@ def _create_liturgy_first_slide(prs, slide_info: dict, bg_path: Path):
         lyrics_box.text_frame.margin_left = MARGIN_LR
         lyrics_box.text_frame.margin_right = MARGIN_LR
 
+        # Scale font for first slide based on available space
+        num_lyric_lines = len(slide_info['lyrics'])
+        available = SLIDE_HEIGHT - lyrics_top - Emu(600_000)
+        line_space = available // max(num_lyric_lines, 1)
+        if line_space >= Emu(685_800):
+            lyric_size = 48
+        elif line_space >= Emu(594_360):
+            lyric_size = 42
+        else:
+            lyric_size = 36
+
         p = lyrics_box.text_frame.paragraphs[0]
-        # For liturgy, check for speaker labels (Pastor:, People:, etc.)
-        _build_liturgy_text(lyrics_box.text_frame, slide_info['lyrics'])
+        _build_liturgy_text(lyrics_box.text_frame, slide_info['lyrics'], font_size=lyric_size)
         _add_shadow(lyrics_box)
 
     # Source badge (bottom-right pill)
@@ -493,33 +603,25 @@ def _create_liturgy_continuation_slide(prs, slide_info: dict, bg_path: Path):
     return slide
 
 
-def _build_liturgy_text(text_frame, lines: list[str]):
+def _build_liturgy_text(text_frame, lines: list[str], font_size: int = 48):
     """Build liturgy text with speaker labels in red italic."""
-    # Join all lines with soft returns
     full_text = '\x0b'.join(lines)
 
     p = text_frame.paragraphs[0]
 
-    # Check if any lines have speaker labels like "Pastor:", "People:", etc.
     speaker_pattern = re.compile(r'^(Pastor(?:\s+and\s+People)?|People|All|Leader|Pastor\s*:?)\s*:?\s*', re.IGNORECASE)
-
-    # Simple approach: put all text, then format speaker labels
-    # For now, use soft returns and consistent formatting
     has_speakers = any(speaker_pattern.match(line) for line in lines)
 
     if has_speakers:
-        # Build with runs for speaker labels in red
         first = True
         for line in lines:
             if not first:
-                # Add soft return
                 from pptx.oxml.ns import qn
                 from lxml import etree
                 br = etree.SubElement(p._p, qn('a:br'))
 
             match = speaker_pattern.match(line)
             if match:
-                # Speaker label in red italic
                 speaker = match.group(0).strip()
                 if not speaker.endswith(':'):
                     speaker += ':'
@@ -528,7 +630,7 @@ def _build_liturgy_text(text_frame, lines: list[str]):
                 run = p.add_run()
                 run.text = speaker + ' '
                 run.font.name = THEME_FONT
-                run.font.size = Pt(48)
+                run.font.size = Pt(font_size)
                 run.font.italic = True
                 run.font.color.rgb = RGBColor(0xFF, 0x00, 0x00)
 
@@ -536,18 +638,18 @@ def _build_liturgy_text(text_frame, lines: list[str]):
                     run2 = p.add_run()
                     run2.text = rest
                     run2.font.name = THEME_FONT
-                    run2.font.size = Pt(48)
+                    run2.font.size = Pt(font_size)
             else:
                 run = p.add_run()
                 run.text = line
                 run.font.name = THEME_FONT
-                run.font.size = Pt(48)
+                run.font.size = Pt(font_size)
 
             first = False
     else:
         p.text = full_text
         p.font.name = THEME_FONT
-        p.font.size = Pt(48)
+        p.font.size = Pt(font_size)
 
     _set_paragraph_spacing(p, 50)
 
@@ -578,30 +680,16 @@ def _create_scripture_first_slide(prs, reference: str, translation_name: str, sl
     """Create the first scripture slide with reference title, verse text, and source badge."""
     slide = prs.slides.add_slide(prs.slide_layouts[6])  # Blank
 
-    # Title: scripture reference (e.g., "Matthew 4:1-11")
-    title_box = slide.shapes.add_textbox(
-        TEXT_LEFT, TITLE_TOP, TEXT_WIDTH, Emu(800_000)
-    )
-    title_box.text_frame.word_wrap = True
-    title_box.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
-    title_box.text_frame.margin_left = MARGIN_LR
-    title_box.text_frame.margin_right = MARGIN_LR
-    title_box.text_frame.margin_top = MARGIN_TB
-    title_box.text_frame.margin_bottom = MARGIN_TB
-
-    p = title_box.text_frame.paragraphs[0]
-    p.alignment = PP_ALIGN.CENTER
-    p.text = reference
-    p.font.name = THEME_FONT
-    p.font.size = Pt(48)
-    p.font.color.rgb = THEME_TITLE_COLOR
-    _set_paragraph_spacing(p, 50)
-    _add_shadow(title_box)
+    # Title pill: scripture reference (e.g., "Matthew 4:1-11")
+    _, title_lines = _add_title_pill(slide, reference, top=TITLE_TOP, font_size=48)
+    extra_lines = max(0, title_lines - 1)
+    line_offset = Emu(730_000)
 
     # Verse text
     if slide_data['lines']:
+        lyrics_top = Emu(1_400_000) + (line_offset * extra_lines)
         lyrics_box = slide.shapes.add_textbox(
-            TEXT_LEFT, Emu(1_400_000), TEXT_WIDTH, Emu(500_000)
+            TEXT_LEFT, lyrics_top, TEXT_WIDTH, Emu(500_000)
         )
         lyrics_box.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
         lyrics_box.text_frame.margin_left = MARGIN_LR
