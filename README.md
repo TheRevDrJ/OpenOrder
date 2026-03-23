@@ -179,7 +179,10 @@ OpenOrder/
 │       ├── scripture.py     # Bible API fetch + caching
 │       ├── models.py        # Pydantic models
 │       ├── hymnal.py        # Hymn search API
-│       └── church_config.py # Church-specific defaults
+│       ├── church_config.py # Church-specific defaults
+│       └── themes/          # Slide theme definitions
+│           ├── __init__.py  # Theme registry
+│           └── oakpark.py   # Oak Park UMC theme
 ├── frontend/
 │   └── src/
 │       ├── App.tsx          # Main form UI
@@ -205,7 +208,7 @@ The app ships with two built-in themes:
 - **Oak Park** — A contemporary layout with centered cover page and olive green accents
 - **Traditional** — *(coming soon)* A classic church bulletin format
 
-Themes live in the `themes/` directory. Community-contributed themes are welcome! If you'd like a custom theme built from your church's existing bulletin, [reach out](https://github.com/TheRevDrJ/OpenOrder/issues) — we're happy to help.
+Slide themes live in `backend/app/themes/` and define fonts, colors, shadow effects, and styling. Each theme is a simple Python dict — no GUI builder needed. Community-contributed themes are welcome! If you'd like a custom theme built from your church's existing bulletin, [reach out](https://github.com/TheRevDrJ/OpenOrder/issues) — we're happy to help.
 
 ## Roadmap
 
@@ -213,7 +216,8 @@ Themes live in the `themes/` directory. Community-contributed themes are welcome
 - [x] PowerPoint slide generation
 - [x] Hymn search across UMH and TFWS
 - [x] Scripture integration with Bible API
-- [ ] Theme system with swappable bulletin layouts
+- [x] Slide theme system (font, colors, shadows, badges)
+- [ ] Bulletin theme system with swappable layouts
 - [ ] Load/edit past weeks from saved JSON
 - [ ] Drag-and-drop service order customization
 - [ ] "Bring your own lyrics" for praise songs
