@@ -223,10 +223,19 @@ Slide themes live in `backend/app/themes/` and define fonts, colors, shadow effe
 - [ ] "Bring your own lyrics" for praise songs
 - [ ] Multi-church support with configurable profiles
 
+## Get Involved
+
+If you're a pastor interested in bringing OpenEar to your church, or a developer who wants to contribute, open an issue or reach out. This is a passion project — the goal is to remove barriers, not build a business.
+
 ## License
 
-[GNU Affero General Public License v3.0](LICENSE)
+[AGPL-3.0](LICENSE) — use it, modify it, share it. Free forever. If you distribute or run a modified version as a network service, you must share your changes under the same license.
+
+## Links
+
+- **Website:** [openearproject.org](https://openorderproject.org)
+- **GitHub:** [TheRevDrJ/OpenEar](https://github.com/TheRevDrJ/OpenOrder)
 
 ---
 
-Built with [Ephphatha](https://github.com/TheRevDrJ). 🙌
+Built with [__Ephphatha__](https://github.com/TheRevDrJ). 🙌
