@@ -159,6 +159,10 @@ def _parse_hymn_slides(hymn_data: dict) -> list[dict]:
     slides = hymn_data['slides']
     title = hymn_data['title']
     number = hymn_data['number']
+
+    # Shorten verbose Lord's Prayer titles at runtime
+    if number in ('894', '895', '896'):
+        title = "The Lord's Prayer"
     result = []
 
     for si, slide in enumerate(slides):
