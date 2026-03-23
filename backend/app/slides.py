@@ -122,32 +122,14 @@ def _load_hymn_data(ref: HymnRef) -> dict | None:
     return None
 
 
-def _is_title_line(line: str, hymn_title: str) -> bool:
-    """Check if a line is a title/header (not lyrics)."""
-    line_lower = line.lower().strip()
-    title_lower = hymn_title.lower().strip()
-    # Exact title match
-    if line_lower == title_lower:
-        return True
-    # (Verse N) or (Refrain) or (N)
-    if re.match(r'^\((?:verse\s+)?\d+\)$', line_lower):
-        return True
-    if line_lower == '(refrain)':
-        return True
-    return False
-
-
-def _is_number_line(line: str, hymn_number: str) -> bool:
-    """Check if a line is just the hymn number."""
-    return line.strip() == hymn_number.strip()
-
-
 def _is_attribution_line(line: str) -> bool:
-    """Check if a line is a WORDS:/copyright attribution."""
+    """Check if a line is a copyright attribution."""
     line_stripped = line.strip()
-    if line_stripped.startswith('WORDS:'):
-        return True
     if '©' in line_stripped or '\u00a9' in line_stripped:
+        return True
+    if line_stripped.startswith('FROM THE'):
+        return True
+    if line_stripped.startswith('FORMER ') and line_stripped.isupper():
         return True
     return False
 
@@ -160,6 +142,12 @@ def _is_refrain_label(line: str) -> bool:
 def _parse_hymn_slides(hymn_data: dict) -> list[dict]:
     """
     Parse hymn JSON into structured slide data.
+
+    The JSON data is already clean — the extraction script uses
+    position-based shape identification to separate title/number/attribution
+    from lyrics at the shape level. So we don't need to do title-matching
+    here. We only need to identify copyright lines and refrain labels.
+
     Returns list of dicts with keys:
       - type: 'first' | 'continuation' | 'refrain'
       - title: str (for first slides)
@@ -177,7 +165,7 @@ def _parse_hymn_slides(hymn_data: dict) -> list[dict]:
     for si, slide in enumerate(slides):
         lines = slide['lines']
 
-        # Separate metadata from lyrics
+        # Separate attribution/copyright from lyrics
         lyrics = []
         attribution = ""
         verse_label = ""
@@ -185,10 +173,6 @@ def _parse_hymn_slides(hymn_data: dict) -> list[dict]:
         is_first = (si == 0)
 
         for line in lines:
-            if _is_title_line(line, title):
-                continue
-            if _is_number_line(line, number):
-                continue
             if _is_attribution_line(line):
                 attribution = line.strip()
                 continue
@@ -201,18 +185,7 @@ def _parse_hymn_slides(hymn_data: dict) -> list[dict]:
             if _is_refrain_label(line):
                 is_refrain = True
                 continue
-            # Check for "FROM THE RITUAL..." type lines in services
-            if line.strip().startswith('FROM THE'):
-                attribution = line.strip()
-                continue
-            # Copyright line
-            if line.strip().startswith('\u00a9') or line.strip().startswith('©'):
-                attribution = line.strip()
-                continue
             lyrics.append(line)
-
-        # Also check for verse label at the start like "1. Amazing grace!"
-        # We keep these as part of lyrics since they contain actual lyric text
 
         slide_info = {
             'type': 'first' if is_first else ('refrain' if is_refrain else 'continuation'),

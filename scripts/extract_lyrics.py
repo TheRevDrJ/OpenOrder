@@ -74,44 +74,30 @@ def parse_hymn_filename(filename: str, source: str) -> dict:
 
 def _is_metadata_text(text: str, hymn_number: str, hymn_title: str,
                        is_first_slide: bool = True) -> bool:
-    """Check if a line of text is metadata rather than lyrics."""
+    """Check if a line of text is metadata rather than lyrics.
+
+    NOTE: We no longer filter by title match here. Title/number/attribution
+    are handled at the SHAPE level (by position), not the text level.
+    This prevents stripping legitimate lyric lines that match the title
+    (e.g., "Give Thanks" in TFWS 2036).
+
+    This function now only filters out content that can appear WITHIN
+    the lyrics shape itself (copyright lines, verse labels, etc.)
+    """
     stripped = text.strip()
     if not stripped:
         return True
 
-    # Hymn number by itself
-    if stripped == hymn_number or stripped == hymn_number.lstrip("0"):
+    # Copyright lines (these DO appear inside lyrics shapes)
+    if stripped.startswith('©') or stripped.startswith('\u00a9'):
         return True
 
-    # Title repeated exactly — ONLY on first slide.
-    # Many hymns repeat the title as a lyric line (e.g., "Give Thanks")
-    if is_first_slide and stripped.lower() == hymn_title.lower():
+    # "FROM THE RITUAL OF..." type attribution (appears in services lyrics shapes)
+    if is_first_slide and stripped.startswith("FROM THE"):
         return True
 
-    # WORDS: attribution line
-    if stripped.startswith("WORDS:"):
-        return True
-
-    # MUSIC: attribution line
-    if stripped.startswith("MUSIC:"):
-        return True
-
-    # Verse/section labels like "(Verse 1)", "(1)", "(Refrain)"
-    if re.match(r'^\((?:Verse\s+)?\d+\)$', stripped, re.IGNORECASE):
-        return True
-    if stripped.lower() == "(refrain)":
-        return True
-
-    # "FROM THE RITUAL OF..." type attribution
-    if stripped.startswith("FROM THE"):
-        return True
-
-    # "FORMER METHODIST CHURCH" and similar denominational attribution
-    if stripped.startswith("FORMER ") and stripped.isupper():
-        return True
-
-    # Scripture reference patterns like "(Acts 11:15)" alone on a line
-    if re.match(r'^\([A-Z][a-z]+\.?\s+\d+:\d+(?:-\d+)?\)$', stripped):
+    # "FORMER METHODIST CHURCH" and similar (appears in services lyrics shapes)
+    if is_first_slide and stripped.startswith("FORMER ") and stripped.isupper():
         return True
 
     return False
@@ -154,25 +140,25 @@ def _shape_is_attribution(shape) -> bool:
 def extract_slide_text_smart(slide, slide_index: int, hymn_number: str,
                               hymn_title: str) -> list[str]:
     """
-    Extract lyrics text from a slide, filtering out metadata shapes.
+    Extract lyrics text from a slide using POSITION-BASED shape identification.
 
-    On first slides (index 0), we skip:
-    - Offscreen placeholders (negative top)
-    - Number box (far right, just the number)
-    - Title box (top of slide)
-    - Attribution box (WORDS: line)
+    The source .pptx slides have a consistent layout:
+    - Offscreen placeholder: top < 0 (negative) -- SKIP
+    - Title/attribution shape: top < 1.5 inches, left < 4 inches -- SKIP on slide 1
+    - Number box: top < 1 inch, left > 8 inches -- SKIP on slide 1
+    - Lyrics shape: top >= 1.5 inches, largest height -- KEEP
 
-    On all slides, within the lyrics text we also filter:
-    - Lines that are just the hymn title repeated
-    - Lines that are just the number
-    - Verse labels like "(Verse 1)"
-    - But we KEEP "Refrain" labels
+    On first slides (index 0), we ONLY extract from the lyrics shape,
+    identified by position (top >= 1.5") and having the largest height.
+    This avoids any text-matching heuristics that could accidentally
+    strip legitimate lyrics (e.g., "Give Thanks" matching the title).
 
-    On continuation slides (index > 0), we take all visible text.
+    On continuation slides (index > 0), we take all visible text since
+    they contain only lyrics.
     """
     lines = []
 
-    # Collect text shapes with their positions
+    # Collect visible text shapes with their positions
     text_shapes = []
     for shape in slide.shapes:
         if not hasattr(shape, 'has_text_frame') or not shape.has_text_frame:
@@ -182,25 +168,31 @@ def extract_slide_text_smart(slide, slide_index: int, hymn_number: str,
         text_shapes.append(shape)
 
     if slide_index == 0:
-        # First slide: be selective about which shapes to include.
-        # Skip number box and title/attribution shapes, but extract
-        # from the main lyrics shape(s).
+        # First slide: find the lyrics shape by position.
+        # It's the shape with top >= 1.5 inches and the largest height.
+        # This cleanly separates title/number/attribution from lyrics
+        # without any text-matching that could strip valid lyric lines.
+        lyrics_candidates = []
         for shape in text_shapes:
-            # Skip number box entirely
-            if _shape_is_number_box(shape, hymn_number):
-                continue
-            # Skip title box at top of slide
-            if _shape_is_title(shape):
-                continue
-            # Skip attribution shapes
-            if _shape_is_attribution(shape):
-                continue
+            top_in = (shape.top or 0) / 914400
+            height_in = (shape.height or 0) / 914400
+            if top_in >= 1.5:
+                lyrics_candidates.append((shape, height_in))
 
-            # This shape should contain lyrics — extract its text
-            _extract_lines_from_shape(shape, lines, hymn_number, hymn_title,
+        if lyrics_candidates:
+            # Sort by height descending — lyrics shape is the tallest
+            lyrics_candidates.sort(key=lambda x: x[1], reverse=True)
+            lyrics_shape = lyrics_candidates[0][0]
+            _extract_lines_from_shape(lyrics_shape, lines, hymn_number, hymn_title,
                                        is_first_slide=True)
+        else:
+            # Fallback: no shape found below 1.5". Take the tallest visible shape.
+            tallest = max(text_shapes, key=lambda s: (s.height or 0), default=None)
+            if tallest:
+                _extract_lines_from_shape(tallest, lines, hymn_number, hymn_title,
+                                           is_first_slide=True)
     else:
-        # Continuation slides: take all visible text
+        # Continuation slides: take all visible text (it's just lyrics)
         for shape in text_shapes:
             _extract_lines_from_shape(shape, lines, hymn_number, hymn_title,
                                        is_first_slide=False)
