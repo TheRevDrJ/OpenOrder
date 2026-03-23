@@ -11,6 +11,7 @@ from pptx.dml.color import RGBColor
 
 from .models import OrderOfWorship, HymnRef
 from .scripture import fetch_scripture
+from .themes import get_theme
 
 RESOURCES = Path(__file__).parent.parent.parent / "resources"
 HYMNAL_DIR = Path(__file__).parent.parent.parent / "hymnal-json"
@@ -30,12 +31,33 @@ CONCERNS_SLIDE = RESOURCES / "slides" / "ConcernsSlide.jpg"
 OFFERING_SLIDE = RESOURCES / "slides" / "OfferingSlide.jpg"
 PRAYER_SLIDE = RESOURCES / "slides" / "PrayerSlide.jpg"
 
-# Theme-configurable (Oak Park theme)
-THEME_FONT = "Georgia"
-THEME_TITLE_COLOR = RGBColor(0x5A, 0x6B, 0x2E)       # Olive green
-THEME_BADGE_BG = RGBColor(0x5A, 0x6B, 0x2E)          # Olive green
-THEME_BADGE_FG = RGBColor(0xFF, 0xFF, 0xFF)           # White
-THEME_LITURGY_UPPERCASE = False                        # True = ALL CAPS, False = title case
+# Active theme — loaded at generation time, module-level default for helpers
+_theme = get_theme()
+
+# Theme accessors (set before each generation via _load_theme)
+THEME_FONT = _theme["font"]
+THEME_TITLE_COLOR = _theme["title_color"]
+THEME_TEXT_COLOR = _theme["text_color"]
+THEME_BADGE_BG = _theme["badge_bg"]
+THEME_BADGE_FG = _theme["badge_fg"]
+THEME_SPEAKER_LABEL_COLOR = _theme["speaker_label_color"]
+THEME_LITURGY_UPPERCASE = _theme["liturgy_uppercase"]
+THEME_SHADOW_ENABLED = _theme["shadow_enabled"]
+
+
+def _load_theme(theme_name: str = None):
+    """Load a theme and update module-level variables."""
+    global THEME_FONT, THEME_TITLE_COLOR, THEME_TEXT_COLOR, THEME_BADGE_BG, THEME_BADGE_FG
+    global THEME_SPEAKER_LABEL_COLOR, THEME_LITURGY_UPPERCASE, THEME_SHADOW_ENABLED
+    t = get_theme(theme_name)
+    THEME_FONT = t["font"]
+    THEME_TITLE_COLOR = t["title_color"]
+    THEME_TEXT_COLOR = t["text_color"]
+    THEME_BADGE_BG = t["badge_bg"]
+    THEME_BADGE_FG = t["badge_fg"]
+    THEME_SPEAKER_LABEL_COLOR = t["speaker_label_color"]
+    THEME_LITURGY_UPPERCASE = t["liturgy_uppercase"]
+    THEME_SHADOW_ENABLED = t["shadow_enabled"]
 
 # Non-theme colors
 WHITE = RGBColor(0xFF, 0xFF, 0xFF)
@@ -54,6 +76,8 @@ MARGIN_TB = Emu(45_720)
 
 def _add_shadow(shape):
     """Add outer shadow effect to a shape for text readability."""
+    if not THEME_SHADOW_ENABLED:
+        return
     from lxml import etree
     spPr = shape._element.spPr
     if spPr is None:
@@ -266,20 +290,21 @@ def _add_source_badge(slide, label: str):
     shape.line.fill.background()
 
     # Dark drop shadow on the badge
-    from lxml import etree as _et
-    from pptx.oxml.ns import qn as _qn
-    _spPr = shape._element.spPr
-    _effectLst = _et.SubElement(_spPr, _qn('a:effectLst'))
-    _outerShdw = _et.SubElement(_effectLst, _qn('a:outerShdw'))
-    _outerShdw.set('dist', '50800')     # ~4pt offset
-    _outerShdw.set('dir', '5400000')    # straight down
-    _outerShdw.set('blurRad', '76200')  # ~6pt blur
-    _outerShdw.set('algn', 'ctr')
-    _outerShdw.set('rotWithShape', '0')
-    _srgb = _et.SubElement(_outerShdw, _qn('a:srgbClr'))
-    _srgb.set('val', '000000')
-    _alpha = _et.SubElement(_srgb, _qn('a:alpha'))
-    _alpha.set('val', '50000')  # 50% opacity black
+    if THEME_SHADOW_ENABLED:
+        from lxml import etree as _et
+        from pptx.oxml.ns import qn as _qn
+        _spPr = shape._element.spPr
+        _effectLst = _et.SubElement(_spPr, _qn('a:effectLst'))
+        _outerShdw = _et.SubElement(_effectLst, _qn('a:outerShdw'))
+        _outerShdw.set('dist', '50800')     # ~4pt offset
+        _outerShdw.set('dir', '5400000')    # straight down
+        _outerShdw.set('blurRad', '76200')  # ~6pt blur
+        _outerShdw.set('algn', 'ctr')
+        _outerShdw.set('rotWithShape', '0')
+        _srgb = _et.SubElement(_outerShdw, _qn('a:srgbClr'))
+        _srgb.set('val', '000000')
+        _alpha = _et.SubElement(_srgb, _qn('a:alpha'))
+        _alpha.set('val', '50000')  # 50% opacity black
 
     # Text
     tf = shape.text_frame
@@ -374,17 +399,18 @@ def _add_title_pill(slide, title_text: str, top=None, font_size=48):
     shape.line.fill.background()
 
     # Dark drop shadow
-    _effectLst = etree.SubElement(spPr, qn('a:effectLst'))
-    _outerShdw = etree.SubElement(_effectLst, qn('a:outerShdw'))
-    _outerShdw.set('dist', '50800')
-    _outerShdw.set('dir', '5400000')
-    _outerShdw.set('blurRad', '76200')
-    _outerShdw.set('algn', 'ctr')
-    _outerShdw.set('rotWithShape', '0')
-    _srgb = etree.SubElement(_outerShdw, qn('a:srgbClr'))
-    _srgb.set('val', '000000')
-    _alpha = etree.SubElement(_srgb, qn('a:alpha'))
-    _alpha.set('val', '50000')
+    if THEME_SHADOW_ENABLED:
+        _effectLst = etree.SubElement(spPr, qn('a:effectLst'))
+        _outerShdw = etree.SubElement(_effectLst, qn('a:outerShdw'))
+        _outerShdw.set('dist', '50800')
+        _outerShdw.set('dir', '5400000')
+        _outerShdw.set('blurRad', '76200')
+        _outerShdw.set('algn', 'ctr')
+        _outerShdw.set('rotWithShape', '0')
+        _srgb = etree.SubElement(_outerShdw, qn('a:srgbClr'))
+        _srgb.set('val', '000000')
+        _alpha = etree.SubElement(_srgb, qn('a:alpha'))
+        _alpha.set('val', '50000')
 
     # Text (no auto_size — AutoShapes ignore SHAPE_TO_FIT_TEXT)
     tf = shape.text_frame
@@ -450,6 +476,7 @@ def _create_hymn_first_slide(prs, slide_info: dict):
         lyrics_text = '\x0b'.join(slide_info['lyrics'])
         p.text = lyrics_text
         p.font.name = THEME_FONT
+        p.font.color.rgb = THEME_TEXT_COLOR
 
         # Scale font for first slide based on available space
         num_lyric_lines = len(slide_info['lyrics'])
@@ -507,6 +534,7 @@ def _create_hymn_continuation_slide(prs, slide_info: dict):
             p.font.name = THEME_FONT
             p.font.size = Pt(48)
             p.font.italic = True
+            p.font.color.rgb = THEME_TEXT_COLOR
             _set_paragraph_spacing(p, 50)
 
             # Lyrics in second paragraph
@@ -515,12 +543,14 @@ def _create_hymn_continuation_slide(prs, slide_info: dict):
             p2.text = lyrics_text
             p2.font.name = THEME_FONT
             p2.font.size = Pt(50)
+            p2.font.color.rgb = THEME_TEXT_COLOR
             _set_paragraph_spacing(p2, 50)
         else:
             lyrics_text = '\x0b'.join(slide_info['lyrics'])
             p.text = lyrics_text
             p.font.name = THEME_FONT
             p.font.size = Pt(50)
+            p.font.color.rgb = THEME_TEXT_COLOR
             _set_paragraph_spacing(p, 50)
 
         _add_shadow(lyrics_box)
@@ -636,24 +666,27 @@ def _build_liturgy_text(text_frame, lines: list[str], font_size: int = 48):
                 run.font.name = THEME_FONT
                 run.font.size = Pt(font_size)
                 run.font.italic = True
-                run.font.color.rgb = RGBColor(0xFF, 0x00, 0x00)
+                run.font.color.rgb = THEME_SPEAKER_LABEL_COLOR
 
                 if rest:
                     run2 = p.add_run()
                     run2.text = rest
                     run2.font.name = THEME_FONT
                     run2.font.size = Pt(font_size)
+                    run2.font.color.rgb = THEME_TEXT_COLOR
             else:
                 run = p.add_run()
                 run.text = line
                 run.font.name = THEME_FONT
                 run.font.size = Pt(font_size)
+                run.font.color.rgb = THEME_TEXT_COLOR
 
             first = False
     else:
         p.text = full_text
         p.font.name = THEME_FONT
         p.font.size = Pt(font_size)
+        p.font.color.rgb = THEME_TEXT_COLOR
 
     _set_paragraph_spacing(p, 50)
 
@@ -706,6 +739,7 @@ def _create_scripture_first_slide(prs, reference: str, translation_name: str, sl
         p.text = lyrics_text
         p.font.name = THEME_FONT
         p.font.size = Pt(44)
+        p.font.color.rgb = THEME_TEXT_COLOR
         _set_paragraph_spacing(p, 50)
         _add_shadow(lyrics_box)
 
@@ -745,6 +779,7 @@ def _create_scripture_continuation_slide(prs, slide_data: dict, is_last: bool = 
         p.text = lyrics_text
         p.font.name = THEME_FONT
         p.font.size = Pt(44)
+        p.font.color.rgb = THEME_TEXT_COLOR
         _set_paragraph_spacing(p, 50)
 
         # Add attribution on last slide
@@ -753,6 +788,7 @@ def _create_scripture_continuation_slide(prs, slide_data: dict, is_last: bool = 
             p2.text = f"— {translation_name}"
             p2.font.name = THEME_FONT
             p2.font.size = Pt(18)
+            p2.font.color.rgb = THEME_TEXT_COLOR
             p2.font.color.rgb = THEME_TITLE_COLOR
             p2.alignment = PP_ALIGN.RIGHT
 
@@ -791,8 +827,9 @@ def _add_theme_slide(prs, theme_image_path: Path | None):
         prs.slides.add_slide(prs.slide_layouts[6])
 
 
-def generate_slides(order: OrderOfWorship) -> Path:
+def generate_slides(order: OrderOfWorship, theme_name: str = None) -> Path:
     """Generate a PowerPoint presentation and return the file path."""
+    _load_theme(theme_name)
     prs = Presentation()
 
     # Set slide dimensions
