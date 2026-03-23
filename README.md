@@ -229,4 +229,4 @@ Slide themes live in `backend/app/themes/` and define fonts, colors, shadow effe
 
 ---
 
-Built with ☕ and [Claude Code](https://claude.ai/claude-code).
+Built with [Ephphatha](https://github.com/TheRevDrJ).
