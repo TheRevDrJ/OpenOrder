@@ -49,7 +49,7 @@ if ($total -eq 0) {
 # Start PowerPoint
 Write-Host "Starting PowerPoint..." -ForegroundColor Yellow
 $ppt = New-Object -ComObject PowerPoint.Application
-$ppt.Visible = [Microsoft.Office.Interop.PowerPoint.MsoTriState]::msoTrue
+$ppt.Visible = $true
 
 $converted = 0
 $skipped = 0
