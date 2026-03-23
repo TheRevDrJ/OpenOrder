@@ -233,8 +233,8 @@ If you're a pastor interested in bringing OpenOrder to your church, or a develop
 
 ## Links
 
-- **Website:** [openearproject.org](https://openorderproject.org)
-- **GitHub:** [TheRevDrJ/OpenEar](https://github.com/TheRevDrJ/OpenOrder)
+- **Website:** [openorderproject.org](https://openorderproject.org)
+- **GitHub:** [TheRevDrJ/OpenOrder](https://github.com/TheRevDrJ/OpenOrder)
 
 ---
 
