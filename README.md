@@ -8,8 +8,9 @@ OpenOrder streamlines the weekly task of preparing Sunday worship materials. Ent
 
 - **Hymn Search** — Search by number or title across the United Methodist Hymnal (UMH) and The Faith We Sing (TFWS)
 - **Bulletin Generation** — Produces a formatted `.docx` bulletin ready to print and fold
-- **Slide Generation** — *(coming soon)* Produces a `.pptx` presentation with hymn lyrics, backgrounds, and static slides
+- **Slide Generation** — Produces a `.pptx` presentation with hymn lyrics, scripture, backgrounds, and static slides
 - **Dark Mode** — Light and dark themes for late-night sermon prep
+- **Scripture Integration** — Fetches scripture text from the free AO Lab Bible API with local caching. Supports BSB, KJV, ASV, WEB, and more
 - **Themeable** — Bulletin layout and styling are driven by themes. Ships with two built-in themes, and the community can create and share more
 
 ## Tech Stack
@@ -101,11 +102,13 @@ The purchased hymnal slides come in `.ppt` format (older PowerPoint). OpenOrder 
 The Python `python-pptx` library cannot read the legacy `.ppt` format. Use the included PowerShell script to batch-convert via PowerPoint COM automation (requires Microsoft PowerPoint installed):
 
 ```powershell
-# From the project root
+# From the project root — converts all .ppt files to .pptx
 .\scripts\convert_ppt_to_pptx.ps1
 ```
 
-This opens each `.ppt` file in PowerPoint and saves it as `.pptx`.
+This opens each `.ppt` file in PowerPoint and saves it as `.pptx` in a temporary `pptx-converted/` directory. The script processes all hymnal folders (Hymns by Number, The Faith We Sing, General Services, etc.) and handles errors gracefully — any files that fail to convert are logged.
+
+> **Note**: Requires Microsoft PowerPoint to be installed. The script uses COM automation, so PowerPoint will briefly open and close for each file. Expect ~1-2 minutes per 100 files.
 
 **Step 2: Extract lyrics to JSON**
 
@@ -113,7 +116,28 @@ This opens each `.ppt` file in PowerPoint and saves it as `.pptx`.
 python scripts/extract_lyrics.py
 ```
 
-This reads each `.pptx` file and extracts the lyrics text and slide structure into JSON files in the `hymnal-json/` directory.
+This reads each `.pptx` file and extracts the lyrics into JSON files in the `hymnal-json/` directory. The extraction is smart about separating metadata from lyrics:
+
+- **Title slides** are identified by shape position and content (hymn title, number, attribution)
+- **Offscreen shapes** (negative top position — a common pattern in the purchased slides) are excluded
+- **Copyright lines** are preserved as metadata but separated from lyrics
+- **Vertical tab characters** are cleaned up and split into proper line breaks
+- An **index file** (`hymnal-json/index.json`) is generated for fast hymn search
+
+After extraction, you can verify the output:
+
+```bash
+# Check for any slides with suspiciously high line counts (likely metadata bleed)
+python -c "
+import json, glob
+for f in glob.glob('hymnal-json/**/*.json', recursive=True):
+    if 'index' in f: continue
+    d = json.load(open(f))
+    for i, s in enumerate(d.get('slides', [])):
+        if s.get('line_count', 0) > 8:
+            print(f'{d[\"number\"]} - {d[\"title\"]}: Slide {i+1} has {s[\"line_count\"]} lines')
+"
+```
 
 ### JSON Format
 
@@ -151,6 +175,8 @@ OpenOrder/
 │   └── app/
 │       ├── main.py          # FastAPI routes
 │       ├── bulletin.py      # Word document generation
+│       ├── slides.py        # PowerPoint slide generation
+│       ├── scripture.py     # Bible API fetch + caching
 │       ├── models.py        # Pydantic models
 │       ├── hymnal.py        # Hymn search API
 │       └── church_config.py # Church-specific defaults
@@ -162,9 +188,13 @@ OpenOrder/
 ├── resources/
 │   ├── images/              # Church logos, QR codes
 │   └── slides/              # Static slide backgrounds
-├── scripts/                 # Hymnal conversion tools
+├── scripts/
+│   ├── convert_ppt_to_pptx.ps1  # PowerShell COM conversion
+│   └── extract_lyrics.py        # PPTX to JSON extraction
 ├── hymnal-json/             # (gitignored) Your hymnal data
-└── output/                  # (gitignored) Generated files
+├── scripture-cache/         # (gitignored) Cached scripture fetches
+├── output/                  # (gitignored) Generated files
+└── OpenOrder.bat            # Windows launcher (start/stop/restart)
 ```
 
 ## Themes
@@ -179,9 +209,13 @@ Themes live in the `themes/` directory. Community-contributed themes are welcome
 
 ## Roadmap
 
-- [ ] PowerPoint slide generation
+- [x] Word bulletin generation
+- [x] PowerPoint slide generation
+- [x] Hymn search across UMH and TFWS
+- [x] Scripture integration with Bible API
 - [ ] Theme system with swappable bulletin layouts
 - [ ] Load/edit past weeks from saved JSON
+- [ ] Drag-and-drop service order customization
 - [ ] "Bring your own lyrics" for praise songs
 - [ ] Multi-church support with configurable profiles
 
