@@ -225,7 +225,7 @@ Slide themes live in `backend/app/themes/` and define fonts, colors, shadow effe
 
 ## Get Involved
 
-If you're a pastor interested in bringing OpenEar to your church, or a developer who wants to contribute, open an issue or reach out. This is a passion project — the goal is to remove barriers, not build a business.
+If you're a pastor interested in bringing OpenOrder to your church, or a developer who wants to contribute, open an issue or reach out. This is a passion project — the goal is to remove barriers, not build a business.
 
 ## License
 
