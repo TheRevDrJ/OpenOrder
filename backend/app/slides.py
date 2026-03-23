@@ -721,11 +721,6 @@ def generate_slides(order: OrderOfWorship) -> Path:
     # 11. Theme slide (separator)
     _add_theme_slide(prs, theme_path)
 
-    # 11.5. Scripture reading
-    if order.scripture:
-        _add_scripture_slides(prs, order.scripture, order.scriptureTranslation)
-        _add_theme_slide(prs, theme_path)
-
     # 12. Prayer Hymn
     if order.prayerHymn:
         _add_hymn_slides(prs, order.prayerHymn, bg_type='hymn')
@@ -740,11 +735,16 @@ def generate_slides(order: OrderOfWorship) -> Path:
     # 15. Theme slide (separator)
     _add_theme_slide(prs, theme_path)
 
-    # 16. Closing Hymn
+    # 16. Scripture reading
+    if order.scripture:
+        _add_scripture_slides(prs, order.scripture, order.scriptureTranslation)
+        _add_theme_slide(prs, theme_path)
+
+    # 17. Closing Hymn
     if order.closingHymn:
         _add_hymn_slides(prs, order.closingHymn, bg_type='hymn')
 
-    # 17. Theme slide (separator, final)
+    # 18. Theme slide (separator, final)
     _add_theme_slide(prs, theme_path)
 
     # Save
