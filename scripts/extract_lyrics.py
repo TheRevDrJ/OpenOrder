@@ -72,7 +72,8 @@ def parse_hymn_filename(filename: str, source: str) -> dict:
     return {"number": "0", "title": name}
 
 
-def _is_metadata_text(text: str, hymn_number: str, hymn_title: str) -> bool:
+def _is_metadata_text(text: str, hymn_number: str, hymn_title: str,
+                       is_first_slide: bool = True) -> bool:
     """Check if a line of text is metadata rather than lyrics."""
     stripped = text.strip()
     if not stripped:
@@ -82,8 +83,9 @@ def _is_metadata_text(text: str, hymn_number: str, hymn_title: str) -> bool:
     if stripped == hymn_number or stripped == hymn_number.lstrip("0"):
         return True
 
-    # Title repeated exactly
-    if stripped.lower() == hymn_title.lower():
+    # Title repeated exactly — ONLY on first slide.
+    # Many hymns repeat the title as a lyric line (e.g., "Give Thanks")
+    if is_first_slide and stripped.lower() == hymn_title.lower():
         return True
 
     # WORDS: attribution line
@@ -180,35 +182,34 @@ def extract_slide_text_smart(slide, slide_index: int, hymn_number: str,
         text_shapes.append(shape)
 
     if slide_index == 0:
-        # First slide: be selective about which shapes to include
+        # First slide: be selective about which shapes to include.
+        # Skip number box and title/attribution shapes, but extract
+        # from the main lyrics shape(s).
         for shape in text_shapes:
-            # Skip number box
+            # Skip number box entirely
             if _shape_is_number_box(shape, hymn_number):
                 continue
-            # Skip title box (top of slide, short text matching title)
+            # Skip title box at top of slide
             if _shape_is_title(shape):
-                title_text = shape.text_frame.text.strip().replace('\x0b', ' ')
-                # Only skip if it looks like a title (matches hymn title or is short)
-                if (title_text.lower() == hymn_title.lower() or
-                    title_text.lower().startswith(hymn_title.lower()[:20]) or
-                    len(title_text) < 60):
-                    continue
-            # Skip attribution
+                continue
+            # Skip attribution shapes
             if _shape_is_attribution(shape):
                 continue
 
             # This shape should contain lyrics — extract its text
-            _extract_lines_from_shape(shape, lines, hymn_number, hymn_title)
+            _extract_lines_from_shape(shape, lines, hymn_number, hymn_title,
+                                       is_first_slide=True)
     else:
         # Continuation slides: take all visible text
         for shape in text_shapes:
-            _extract_lines_from_shape(shape, lines, hymn_number, hymn_title)
+            _extract_lines_from_shape(shape, lines, hymn_number, hymn_title,
+                                       is_first_slide=False)
 
     return lines
 
 
 def _extract_lines_from_shape(shape, lines: list, hymn_number: str,
-                               hymn_title: str):
+                               hymn_title: str, is_first_slide: bool = True):
     """Extract text lines from a shape, filtering metadata lines."""
     for paragraph in shape.text_frame.paragraphs:
         text = paragraph.text.strip()
@@ -220,13 +221,15 @@ def _extract_lines_from_shape(shape, lines: list, hymn_number: str,
             sub_lines = text.split('\x0b')
             for sub in sub_lines:
                 sub = sub.strip()
-                if sub and not _is_metadata_text(sub, hymn_number, hymn_title):
+                if sub and not _is_metadata_text(sub, hymn_number, hymn_title,
+                                                  is_first_slide):
                     lines.append(sub)
         else:
             # Keep "Refrain" as a label
             if text.lower() == "refrain":
                 lines.append(text)
-            elif not _is_metadata_text(text, hymn_number, hymn_title):
+            elif not _is_metadata_text(text, hymn_number, hymn_title,
+                                        is_first_slide):
                 lines.append(text)
 
 
