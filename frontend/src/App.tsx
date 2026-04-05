@@ -7,7 +7,6 @@ import { Separator } from '@/components/ui/separator'
 import { HymnPicker } from '@/components/HymnPicker'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { getHealth, saveService, loadService, listServices, uploadThemeImage, downloadUrl } from '@/lib/api'
-import { churchConfig } from '@/lib/church-config'
 import type { OrderOfWorship, StaffMember } from '@/types'
 import { emptyOrder } from '@/types'
 

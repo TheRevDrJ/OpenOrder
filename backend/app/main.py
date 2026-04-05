@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from .hymnal import search_hymns, get_hymn, get_hymn_by_ref
 from .models import OrderOfWorship
@@ -168,6 +169,28 @@ def download_file(filename: str):
     if not path.exists():
         raise HTTPException(404, "File not found")
     return FileResponse(path, filename=filename)
+
+
+# --- Serve frontend in production ---
+# The built frontend lives in frontend/dist after `npm run build`
+FRONTEND_DIST = Path(__file__).parent.parent.parent / "frontend" / "dist"
+if FRONTEND_DIST.exists():
+    # Serve static assets (JS, CSS, images)
+    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="static-assets")
+    # Serve other static files (favicon, etc.)
+    for static_file in FRONTEND_DIST.iterdir():
+        if static_file.is_file() and static_file.name != "index.html":
+            @app.get(f"/{static_file.name}")
+            def serve_static(f=static_file):
+                return FileResponse(f)
+
+    # SPA fallback — serve index.html for any non-API route
+    @app.get("/{full_path:path}")
+    def serve_spa(full_path: str):
+        # Don't intercept API routes
+        if full_path.startswith("api/"):
+            raise HTTPException(404)
+        return FileResponse(FRONTEND_DIST / "index.html")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 """Hymnal index and search functionality."""
 
 import json
+import re
 from pathlib import Path
 
 HYMNAL_DIR = Path(__file__).parent.parent.parent / "hymnal-json"
@@ -16,13 +17,20 @@ def _load_index() -> list[dict]:
     return _index
 
 
+def _strip_punctuation(s: str) -> str:
+    """Remove punctuation for fuzzy matching."""
+    return re.sub(r'[^\w\s]', '', s)
+
+
 def search_hymns(query: str, limit: int = 20) -> list[dict]:
-    """Search hymns by number or title. Case-insensitive."""
+    """Search hymns by number or title. Case-insensitive, punctuation-tolerant."""
     index = _load_index()
     query_lower = query.lower().strip()
 
     if not query_lower:
         return []
+
+    query_stripped = _strip_punctuation(query_lower)
 
     # Exact number match first
     exact = [h for h in index if h["number"] == query_lower.lstrip("0")]
@@ -30,10 +38,12 @@ def search_hymns(query: str, limit: int = 20) -> list[dict]:
     if not exact:
         exact = [h for h in index if h["number"].zfill(3) == query_lower.zfill(3)]
 
-    # Then title contains
+    # Then title contains (try exact first, then punctuation-stripped)
     title_matches = [
         h for h in index
-        if query_lower in h["title"].lower() and h not in exact
+        if (query_lower in h["title"].lower()
+            or query_stripped in _strip_punctuation(h["title"].lower()))
+        and h not in exact
     ]
 
     # Then number starts-with
