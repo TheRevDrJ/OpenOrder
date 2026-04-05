@@ -8,7 +8,7 @@ from pathlib import Path
 import httpx
 import pythonbible as bible
 
-CACHE_DIR = Path(__file__).parent.parent.parent / "scripture-cache"
+from .paths import SCRIPTURE_CACHE_DIR as CACHE_DIR
 API_BASE = "https://bible.helloao.org/api"
 
 # pythonbible Book enum -> USFM 3-letter code (used by AO Lab API)

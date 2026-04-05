@@ -13,8 +13,7 @@ from docx.oxml import parse_xml
 from .models import OrderOfWorship
 from . import church_config as cfg
 
-RESOURCES = Path(__file__).parent.parent.parent / "resources"
-OUTPUT_DIR = Path(__file__).parent.parent.parent / "output"
+from .paths import RESOURCES_DIR as RESOURCES, OUTPUT_DIR
 QR_CODE_PATH = RESOURCES / "images" / "bulletin_image2.png"
 
 # Dark olive — only used for website link on cover

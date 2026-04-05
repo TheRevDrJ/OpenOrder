@@ -40,3 +40,9 @@ scripture-cache/
 # Source hymnal files (large binary)
 *.ppt
 *.pptx
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec
+settings.json

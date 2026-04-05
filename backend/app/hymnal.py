@@ -4,16 +4,22 @@ import json
 import re
 from pathlib import Path
 
-HYMNAL_DIR = Path(__file__).parent.parent.parent / "hymnal-json"
+from .paths import HYMNAL_DIR
 
 _index: list[dict] | None = None
 
 
-def _load_index() -> list[dict]:
+def _load_index(force: bool = False) -> list[dict]:
+    """Load the hymnal index. Use force=True to reload after data_dir change."""
     global _index
-    if _index is None:
-        with open(HYMNAL_DIR / "index.json", "r", encoding="utf-8") as f:
-            _index = json.load(f)
+    if _index is None or force:
+        from .paths import HYMNAL_DIR as current_hymnal_dir
+        index_path = current_hymnal_dir / "index.json"
+        if index_path.exists():
+            with open(index_path, "r", encoding="utf-8") as f:
+                _index = json.load(f)
+        else:
+            _index = []
     return _index
 
 

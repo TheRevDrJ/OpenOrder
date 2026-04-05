@@ -1,6 +1,7 @@
 """Order of Worship — FastAPI backend."""
 
 import json
+import sys
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -24,8 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-OUTPUT_DIR = Path(__file__).parent.parent.parent / "output"
-OUTPUT_DIR.mkdir(exist_ok=True)
+from .paths import OUTPUT_DIR, FRONTEND_DIST_DIR, get_settings, update_data_dir, _data_root
 
 
 def next_sunday() -> str:
@@ -161,6 +161,31 @@ def scripture_fetch(ref: str = "", translation: str = "BSB"):
     return data
 
 
+# --- Settings ---
+
+@app.get("/api/settings")
+def api_get_settings():
+    settings = get_settings()
+    settings["data_dir_current"] = str(_data_root())
+    return settings
+
+
+@app.post("/api/settings/data-dir")
+def api_set_data_dir(body: dict):
+    new_dir = body.get("data_dir", "").strip()
+    if not new_dir:
+        raise HTTPException(400, "data_dir is required")
+    from pathlib import Path
+    p = Path(new_dir)
+    if not p.exists():
+        raise HTTPException(400, f"Directory does not exist: {new_dir}")
+    update_data_dir(new_dir)
+    # Reload the hymnal index since the data dir changed
+    from .hymnal import _load_index
+    _load_index()
+    return {"data_dir": new_dir, "status": "ok"}
+
+
 # --- File downloads ---
 
 @app.get("/api/download/{filename}")
@@ -172,8 +197,7 @@ def download_file(filename: str):
 
 
 # --- Serve frontend in production ---
-# The built frontend lives in frontend/dist after `npm run build`
-FRONTEND_DIST = Path(__file__).parent.parent.parent / "frontend" / "dist"
+FRONTEND_DIST = FRONTEND_DIST_DIR
 if FRONTEND_DIST.exists():
     # Serve static assets (JS, CSS, images)
     app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="static-assets")

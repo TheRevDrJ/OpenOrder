@@ -13,9 +13,7 @@ from .models import OrderOfWorship, HymnRef
 from .scripture import fetch_scripture
 from .themes import get_theme
 
-RESOURCES = Path(__file__).parent.parent.parent / "resources"
-HYMNAL_DIR = Path(__file__).parent.parent.parent / "hymnal-json"
-OUTPUT_DIR = Path(__file__).parent.parent.parent / "output"
+from .paths import RESOURCES_DIR as RESOURCES, HYMNAL_DIR, OUTPUT_DIR
 
 # Slide dimensions: 13.333" x 7.500" (widescreen 16:9)
 SLIDE_WIDTH = Emu(12_192_000)
