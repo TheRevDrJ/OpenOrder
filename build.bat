@@ -25,7 +25,7 @@ echo         Done.
 :: Step 2: Run PyInstaller
 echo   [2/3] Packaging with PyInstaller...
 cd /d "%ROOT%"
-python -m PyInstaller --noconfirm --onedir --windowed --name "OpenOrder" ^
+python -m PyInstaller --noconfirm --onedir --windowed --name "OpenOrder" --icon "resources\images\openorder.ico" --distpath "D:\claude" ^
     --add-data "frontend/dist;frontend/dist" ^
     --add-data "resources;resources" ^
     --add-data "backend/app;app" ^
