@@ -103,10 +103,27 @@ def _set_paragraph_spacing(paragraph, space_before_pct=50):
     spcPct.set('val', str(space_before_pct * 1000))
 
 
+def _convert_to_png_if_needed(image_path: Path) -> Path:
+    """Convert unsupported image formats (WebP, etc.) to PNG for python-pptx."""
+    supported = {'.bmp', '.gif', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.wmf'}
+    if image_path.suffix.lower() in supported:
+        return image_path
+    try:
+        from PIL import Image
+        png_path = image_path.with_suffix('.png')
+        if not png_path.exists():
+            img = Image.open(image_path)
+            img.save(png_path, 'PNG')
+        return png_path
+    except Exception:
+        return image_path  # fallback, will error downstream
+
+
 def _add_full_image_slide(prs, image_path):
     """Add a slide with a single full-bleed image."""
     slide = prs.slides.add_slide(prs.slide_layouts[6])  # Blank layout
     if image_path.exists():
+        image_path = _convert_to_png_if_needed(image_path)
         slide.shapes.add_picture(
             str(image_path), Emu(0), Emu(0),
             SLIDE_WIDTH, SLIDE_HEIGHT

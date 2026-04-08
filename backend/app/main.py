@@ -98,10 +98,22 @@ def save_service(service_date: str, data: OrderOfWorship):
 
 @app.post("/api/services/{service_date}/theme-image")
 async def upload_theme_image(service_date: str, file: UploadFile):
-    ext = Path(file.filename).suffix or ".jpg"
+    ext = Path(file.filename).suffix.lower() or ".jpg"
+    content = await file.read()
+
+    # Convert unsupported formats (WebP, etc.) to PNG at upload time
+    supported = {'.bmp', '.gif', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.wmf'}
+    if ext not in supported:
+        from PIL import Image
+        import io
+        img = Image.open(io.BytesIO(content))
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        content = buf.getvalue()
+        ext = '.png'
+
     filename = f"{service_date} - Theme{ext}"
     dest = OUTPUT_DIR / filename
-    content = await file.read()
     with open(dest, "wb") as f:
         f.write(content)
     return {"filename": filename}
@@ -122,6 +134,10 @@ def gen_bulletin(service_date: str):
         raise HTTPException(
             409, "The bulletin file is open in another program (probably Word). Close it and try again."
         )
+    except Exception as e:
+        import traceback, logging
+        logging.getLogger("OpenOrder").error("Bulletin generation failed:\n%s", traceback.format_exc())
+        raise HTTPException(500, f"Bulletin generation failed: {str(e)}")
     return {"filename": filepath.name}
 
 
@@ -138,6 +154,10 @@ def gen_slides(service_date: str):
         raise HTTPException(
             409, "The slides file is open in another program (probably PowerPoint). Close it and try again."
         )
+    except Exception as e:
+        import traceback, logging
+        logging.getLogger("OpenOrder").error("Slide generation failed:\n%s", traceback.format_exc())
+        raise HTTPException(500, f"Slide generation failed: {str(e)}")
     return {"filename": filepath.name}
 
 
@@ -175,7 +195,8 @@ def api_set_data_dir(body: dict):
     new_dir = body.get("data_dir", "").strip()
     if not new_dir:
         raise HTTPException(400, "data_dir is required")
-    from pathlib import Path
+    # Normalize path — fix double backslashes, convert forward slashes
+    new_dir = str(Path(new_dir).resolve())
     p = Path(new_dir)
     if not p.exists():
         raise HTTPException(400, f"Directory does not exist: {new_dir}")

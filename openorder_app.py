@@ -105,12 +105,25 @@ def main():
         else:
             icon_path = os.path.join(BASE_DIR, "resources", "images", "openorder.ico")
 
+        class Api:
+            def pick_folder(self):
+                """Open a native folder picker dialog."""
+                result = window.create_file_dialog(
+                    webview.FOLDER_DIALOG
+                )
+                if result and len(result) > 0:
+                    return result[0]
+                return None
+
+        api = Api()
+
         window = webview.create_window(
             "OpenOrder",
             "http://127.0.0.1:8316",
             width=1100,
             height=850,
             min_size=(800, 600),
+            js_api=api,
         )
 
         # Start the webview event loop (blocks until window is closed)
