@@ -163,6 +163,82 @@ def gen_slides(service_date: str):
 
 # --- Scripture ---
 
+# --- Template management ---
+
+EXPECTED_PLACEHOLDERS = [
+    '{{DATE}}', '{{SERVICE_TITLE}}',
+    '{{OPENING_HYMN_TITLE}}', '{{OFFERTORY_HYMN_TITLE}}', '{{OFFERTORY_HYMN}}',
+    '{{DOX}}', '{{CREED}}', '{{CREED_TITLE}}',
+    '{{PRAYER_HYMN_NUMBER}}', '{{PRAYER_HYMN_TITLE}}',
+    '{{LITURGICAL_PRAYER}}',
+    '{{SCRIPTURE}}', '{{SPEAKER}}',
+    '{{SERMON_TITLE}}', '{{SERMON_SUBTITLE}}',
+    '{{CLOSING_HYMN_NUMBER}}', '{{CLOSING_HYMN_TITLE}}',
+]
+
+
+@app.get("/api/template/info")
+def template_info():
+    """Return info about the current bulletin template."""
+    from .bulletin import TEMPLATE_PATH
+    from docx import Document
+
+    if not TEMPLATE_PATH.exists():
+        return {"exists": False, "name": None, "placeholders": []}
+
+    doc = Document(str(TEMPLATE_PATH))
+    full_text = '\n'.join(p.text for p in doc.paragraphs)
+
+    found = [p for p in EXPECTED_PLACEHOLDERS if p in full_text]
+    missing = [p for p in EXPECTED_PLACEHOLDERS if p not in full_text]
+
+    return {
+        "exists": True,
+        "name": TEMPLATE_PATH.name,
+        "found": found,
+        "missing": missing,
+        "total_expected": len(EXPECTED_PLACEHOLDERS),
+    }
+
+
+@app.post("/api/template/upload")
+async def upload_template(file: UploadFile):
+    """Upload and validate a new bulletin template."""
+    if not file.filename.endswith('.docx'):
+        raise HTTPException(400, "Template must be a .docx file")
+
+    content = await file.read()
+
+    # Validate it's a real docx by trying to open it
+    try:
+        import io
+        from docx import Document
+        doc = Document(io.BytesIO(content))
+    except Exception:
+        raise HTTPException(400, "Invalid .docx file — could not parse")
+
+    # Check for placeholders
+    full_text = '\n'.join(p.text for p in doc.paragraphs)
+    found = [p for p in EXPECTED_PLACEHOLDERS if p in full_text]
+    missing = [p for p in EXPECTED_PLACEHOLDERS if p not in full_text]
+
+    # Save it
+    from .bulletin import TEMPLATE_PATH
+    TEMPLATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(TEMPLATE_PATH, "wb") as f:
+        f.write(content)
+
+    return {
+        "saved": True,
+        "name": file.filename,
+        "found": found,
+        "missing": missing,
+        "total_expected": len(EXPECTED_PLACEHOLDERS),
+    }
+
+
+# --- Scripture ---
+
 @app.get("/api/scripture/translations")
 def scripture_translations():
     return get_available_translations()

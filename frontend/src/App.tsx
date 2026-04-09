@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { HymnPicker } from '@/components/HymnPicker'
-import { ThemeToggle } from '@/components/ThemeToggle'
+import { SettingsPanel } from '@/components/SettingsPanel'
 import { getHealth, saveService, loadService, listServices, uploadThemeImage, downloadUrl } from '@/lib/api'
 import type { OrderOfWorship, StaffMember } from '@/types'
 import { emptyOrder } from '@/types'
@@ -44,6 +44,7 @@ function App() {
   const [generatingSlides, setGeneratingSlides] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [themePreview, setThemePreview] = useState<string | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => {
     getHealth().then(data => {
@@ -52,7 +53,7 @@ function App() {
         .then(existing => {
           setOrder({ ...emptyOrder(data.nextSunday), ...existing })
           if (existing.themeImageFilename) {
-            setThemePreview(downloadUrl(existing.themeImageFilename))
+            setThemePreview(downloadUrl(existing.themeImageFilename) + '?t=' + Date.now())
           }
         })
         .catch(() => {})
@@ -84,7 +85,7 @@ function App() {
       const data = await loadService(date)
       setOrder({ ...emptyOrder(date), ...data })
       if (data.themeImageFilename) {
-        setThemePreview(downloadUrl(data.themeImageFilename))
+        setThemePreview(downloadUrl(data.themeImageFilename) + '?t=' + Date.now())
       } else {
         setThemePreview(null)
       }
@@ -102,6 +103,8 @@ function App() {
     const filename = await uploadThemeImage(order.date, file)
     update('themeImageFilename', filename)
     setThemePreview(URL.createObjectURL(file))
+    // Reset input so re-selecting the same file triggers onChange
+    e.target.value = ''
   }
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -207,52 +210,16 @@ function App() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={async () => {
-                // Check if running in pywebview (has native folder picker)
-                const pywebview = (window as any).pywebview
-                let dir: string | null = null
-
-                if (pywebview?.api?.pick_folder) {
-                  dir = await pywebview.api.pick_folder()
-                } else {
-                  // Fallback: prompt with current path pre-filled
-                  const settings = await fetch('/api/settings').then(r => r.json())
-                  const current = settings.data_dir_current || ''
-                  dir = prompt('Data directory path (where hymnal-json, output, etc. live):', current)
-                }
-
-                if (dir) {
-                  // Normalize backslashes to forward slashes for JSON safety
-                  dir = dir.replace(/\\\\/g, '/').replace(/\\/g, '/')
-                  try {
-                    const res = await fetch('/api/settings/data-dir', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ data_dir: dir })
-                    })
-                    if (res.ok) {
-                      window.location.reload()
-                    } else {
-                      const err = await res.json()
-                      alert(err.detail || 'Failed to set data directory')
-                    }
-                  } catch {
-                    alert('Could not reach server')
-                  }
-                }
-              }}
-              className="p-2 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-              title="Set data directory"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
-                <circle cx="12" cy="12" r="3"/>
-              </svg>
-            </button>
-            <ThemeToggle />
-          </div>
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="p-2 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+            title="Settings"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
         </div>
       </header>
 
@@ -522,6 +489,7 @@ function App() {
           </div>
         )}
       </div>
+      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   )
 }
