@@ -137,6 +137,22 @@ def _save_cache(reference: str, translation: str, data: dict):
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 
+def _extract_text_recursive(item) -> str:
+    """Recursively extract plain text from any API content structure."""
+    if isinstance(item, str):
+        return item
+    if isinstance(item, dict):
+        # Direct text field (used in poetry/psalms: {"text": "...", "poem": 1})
+        if "text" in item:
+            return item["text"]
+        # Nested content list
+        if "content" in item:
+            return " ".join(_extract_text_recursive(sub) for sub in item["content"])
+    if isinstance(item, list):
+        return " ".join(_extract_text_recursive(sub) for sub in item)
+    return ""
+
+
 def _extract_verse_text(content_item: dict) -> str:
     """Extract plain text from an AO Lab API content item."""
     if content_item.get("type") != "verse":
@@ -144,17 +160,9 @@ def _extract_verse_text(content_item: dict) -> str:
 
     parts = []
     for item in content_item.get("content", []):
-        if isinstance(item, str):
-            parts.append(item)
-        elif isinstance(item, dict):
-            # Nested content (e.g., poetry, quotes)
-            for sub in item.get("content", []):
-                if isinstance(sub, str):
-                    parts.append(sub)
-                elif isinstance(sub, dict):
-                    for subsub in sub.get("content", []):
-                        if isinstance(subsub, str):
-                            parts.append(subsub)
+        text = _extract_text_recursive(item)
+        if text:
+            parts.append(text)
 
     text = " ".join(parts).strip()
     # Clean up multiple spaces
