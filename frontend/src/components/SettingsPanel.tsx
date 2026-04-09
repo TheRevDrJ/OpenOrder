@@ -16,8 +16,8 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
   const [uploading, setUploading] = useState(false)
   const [uploadResult, setUploadResult] = useState<TemplateInfo | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  const [darkMode, setDarkMode] = useState(
-    document.documentElement.classList.contains('dark')
+  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>(
+    () => (localStorage.getItem('theme') as 'light' | 'dark' | 'system') || 'system'
   )
 
   useEffect(() => {
@@ -79,16 +79,22 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
     }
   }
 
-  function toggleDarkMode() {
+  function applyTheme(mode: 'light' | 'dark' | 'system') {
     const html = document.documentElement
-    if (html.classList.contains('dark')) {
-      html.classList.remove('dark')
-      localStorage.setItem('theme', 'light')
-      setDarkMode(false)
-    } else {
+    localStorage.setItem('theme', mode)
+    setThemeMode(mode)
+
+    if (mode === 'dark') {
       html.classList.add('dark')
-      localStorage.setItem('theme', 'dark')
-      setDarkMode(true)
+    } else if (mode === 'light') {
+      html.classList.remove('dark')
+    } else {
+      // System preference
+      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        html.classList.add('dark')
+      } else {
+        html.classList.remove('dark')
+      }
     }
   }
 
@@ -159,27 +165,25 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
           {/* Appearance */}
           <div>
             <Label className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Appearance</Label>
-            <div className="mt-2 flex items-center gap-3">
-              <button
-                onClick={toggleDarkMode}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-input bg-background hover:bg-accent text-sm transition-colors"
-              >
-                {darkMode ? (
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
-                    </svg>
-                    Switch to Light
-                  </>
-                ) : (
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
-                    </svg>
-                    Switch to Dark
-                  </>
-                )}
-              </button>
+            <div className="mt-2 flex items-center gap-2">
+              {([
+                { mode: 'light' as const, label: 'Light', icon: <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg> },
+                { mode: 'dark' as const, label: 'Dark', icon: <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg> },
+                { mode: 'system' as const, label: 'System', icon: <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg> },
+              ]).map(({ mode, label, icon }) => (
+                <button
+                  key={mode}
+                  onClick={() => applyTheme(mode)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm transition-colors ${
+                    themeMode === mode
+                      ? 'border-primary bg-primary/10 text-primary font-medium'
+                      : 'border-input bg-background hover:bg-accent text-muted-foreground'
+                  }`}
+                >
+                  {icon}
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
         </div>
