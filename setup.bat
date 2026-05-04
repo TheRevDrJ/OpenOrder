@@ -29,6 +29,7 @@ if %ERRORLEVEL% neq 0 (
 )
 for /f "tokens=2 delims= " %%v in ('python --version 2^>^&1') do set PYVER=%%v
 echo          Found Python %PYVER%
+echo          (OpenOrder is tested on Python 3.13. Other 3.x versions usually work.)
 
 :: --------------------------------------------------
 ::  2. Check for Node.js
