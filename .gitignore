@@ -37,6 +37,9 @@ hymnal-json/
 # Scripture cache (user-fetched Bible text — per-user data)
 scripture-cache/
 
+# Calendar data (per-church templates, events, notes — user data)
+data/
+
 # Source hymnal files (large binary)
 *.ppt
 *.pptx

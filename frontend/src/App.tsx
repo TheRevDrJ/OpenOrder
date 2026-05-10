@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { HymnPicker } from '@/components/HymnPicker'
 import { SettingsPanel } from '@/components/SettingsPanel'
+import { CalendarTab } from '@/components/CalendarTab'
 import { getHealth, saveService, loadService, listServices, uploadThemeImage, downloadUrl } from '@/lib/api'
 import type { OrderOfWorship, StaffMember } from '@/types'
 import { emptyOrder } from '@/types'
@@ -45,6 +46,7 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [themePreview, setThemePreview] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<'service' | 'calendar'>('service')
 
   useEffect(() => {
     getHealth().then(data => {
@@ -224,10 +226,35 @@ function App() {
       </header>
 
       <div className="max-w-3xl mx-auto pt-6 px-4 pb-16">
-        {/* Title bar */}
-        <div className="bg-primary text-primary-foreground rounded-lg px-4 py-2 mb-6">
-          <h2 className="text-xl font-bold">Order of Worship</h2>
+        {/* Tab navigation */}
+        <div className="flex border-b border-border mb-6">
+          <button
+            onClick={() => setActiveTab('service')}
+            className={`relative px-5 py-2.5 text-sm font-semibold transition-colors -mb-px ${
+              activeTab === 'service'
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-muted-foreground hover:text-foreground border-b-2 border-transparent'
+            }`}
+          >
+            Service
+          </button>
+          <button
+            onClick={() => setActiveTab('calendar')}
+            className={`relative px-5 py-2.5 text-sm font-semibold transition-colors -mb-px ${
+              activeTab === 'calendar'
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-muted-foreground hover:text-foreground border-b-2 border-transparent'
+            }`}
+          >
+            Calendar
+          </button>
         </div>
+
+        {activeTab === 'calendar' && (
+          <CalendarTab serviceDate={order.date} />
+        )}
+
+        {activeTab === 'service' && <>
         {/* Service Information */}
         <Card className="mb-6 shadow-sm">
           <CardHeader className="pb-4">
@@ -488,6 +515,7 @@ function App() {
             <button onClick={() => setErrorMsg(null)} className="ml-4 hover:opacity-70">✕</button>
           </div>
         )}
+        </>}
       </div>
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>

@@ -72,15 +72,17 @@ FRONTEND_DIST_DIR = _bundle_root() / "frontend" / "dist"
 OUTPUT_DIR = _data_root() / "output"
 HYMNAL_DIR = _data_root() / "hymnal-json"
 SCRIPTURE_CACHE_DIR = _data_root() / "scripture-cache"
+DATA_DIR = _data_root() / "data"
 
 # Ensure writable directories exist
 OUTPUT_DIR.mkdir(exist_ok=True)
 SCRIPTURE_CACHE_DIR.mkdir(exist_ok=True)
+DATA_DIR.mkdir(exist_ok=True)
 
 
 def update_data_dir(new_dir: str):
     """Update the data directory and recalculate all paths."""
-    global OUTPUT_DIR, HYMNAL_DIR, SCRIPTURE_CACHE_DIR
+    global OUTPUT_DIR, HYMNAL_DIR, SCRIPTURE_CACHE_DIR, DATA_DIR
 
     settings = _load_settings()
     settings["data_dir"] = new_dir
@@ -90,6 +92,8 @@ def update_data_dir(new_dir: str):
     OUTPUT_DIR = root / "output"
     HYMNAL_DIR = root / "hymnal-json"
     SCRIPTURE_CACHE_DIR = root / "scripture-cache"
+    DATA_DIR = root / "data"
 
     OUTPUT_DIR.mkdir(exist_ok=True)
     SCRIPTURE_CACHE_DIR.mkdir(exist_ok=True)
+    DATA_DIR.mkdir(exist_ok=True)

@@ -217,11 +217,17 @@ Slide themes live in `backend/app/themes/` and define fonts, colors, shadow effe
 - [x] Hymn search across UMH and TFWS
 - [x] Scripture integration with Bible API
 - [x] Slide theme system (font, colors, shadows, badges)
-- [ ] Bulletin theme system with swappable layouts
-- [ ] Load/edit past weeks from saved JSON
+- [x] Template-based bulletin generation (template = theme)
+- [x] Standalone desktop app (.exe) via PyInstaller + pywebview
+- [x] Configurable data directory for shared/Dropbox setups
+- [x] Bulletin template upload with placeholder validation
+- [x] Calendar generation with recurring + one-off events
+- [x] Per-week calendar notes with formatting controls
+- [x] Load/edit past weeks from saved JSON
 - [ ] Drag-and-drop service order customization
 - [ ] "Bring your own lyrics" for praise songs
 - [ ] Multi-church support with configurable profiles
+- [ ] Google Calendar / iCal import for events
 
 ## Get Involved
 

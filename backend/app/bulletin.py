@@ -10,14 +10,22 @@ swaps the placeholders with real content and replaces the theme image.
 import copy
 import io
 import re
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from docx import Document
-from docx.shared import Inches
+from docx.shared import Inches, Pt, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 
 from .models import OrderOfWorship
 from .paths import RESOURCES_DIR, OUTPUT_DIR
+from . import calendar_data
+
+# Olive accent color for calendar block
+CALENDAR_OLIVE = RGBColor(0x6B, 0x7A, 0x3D)
+CALENDAR_FONT = "Georgia"
 
 # Template path — this is the "theme"
 TEMPLATE_PATH = RESOURCES_DIR / "bulletin" / "Template - Bulletin.docx"
@@ -147,6 +155,221 @@ def _replace_theme_image(doc: Document, image_path: Path):
                         return
 
 
+def _format_event_date(d: date) -> tuple[str, str, str, str]:
+    """Return (DAYNAME, 'Month Day', suffix, '') split for superscript rendering."""
+    day = d.day
+    if 11 <= day <= 13:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+    return d.strftime("%A").upper(), f"{d.strftime('%B')} {day}", suffix, ""
+
+
+def _add_olive_left_border(paragraph):
+    """Add a thick olive left border to a paragraph for visual accent."""
+    p_pr = paragraph._p.get_or_add_pPr()
+    p_bdr = OxmlElement('w:pBdr')
+    left = OxmlElement('w:left')
+    left.set(qn('w:val'), 'single')
+    left.set(qn('w:sz'), '24')  # 3pt thick
+    left.set(qn('w:space'), '8')
+    left.set(qn('w:color'), '6B7A3D')
+    p_bdr.append(left)
+    p_pr.append(p_bdr)
+
+
+def _add_olive_bottom_border(paragraph):
+    """Add a thick olive bottom border (horizontal divider)."""
+    p_pr = paragraph._p.get_or_add_pPr()
+    p_bdr = OxmlElement('w:pBdr')
+    bottom = OxmlElement('w:bottom')
+    bottom.set(qn('w:val'), 'single')
+    bottom.set(qn('w:sz'), '12')  # 1.5pt thick (lighter than vertical bar)
+    bottom.set(qn('w:space'), '1')
+    bottom.set(qn('w:color'), '6B7A3D')
+    p_bdr.append(bottom)
+    p_pr.append(p_bdr)
+
+
+def _read_anchor_font(paragraph) -> tuple[str, float]:
+    """Read font name and size from the {{CALENDAR_BLOCK}} placeholder."""
+    font_name = CALENDAR_FONT
+    font_size = 11.0
+    for run in paragraph.runs:
+        if run.font.name:
+            font_name = run.font.name
+        if run.font.size:
+            font_size = run.font.size.pt
+            break
+    return font_name, font_size
+
+
+def _render_calendar_block(doc, anchor_paragraph, service_date_str: str):
+    """
+    Replace the {{CALENDAR_BLOCK}} paragraph with a styled calendar.
+
+    Font name/size is inherited from the placeholder paragraph.
+    Day headers are +2pt over the base.
+    Olive accent for headers and times.
+    """
+    cal = calendar_data.get_calendar_for_service(service_date_str)
+    events = cal.get("events", [])
+
+    # Read font from anchor paragraph
+    base_font, base_size = _read_anchor_font(anchor_paragraph)
+    header_size = base_size + 2
+
+    # Group events by date
+    by_date: dict[str, list] = {}
+    for e in events:
+        by_date.setdefault(e["date"], []).append(e)
+
+    # Get the parent and index for inserting after the anchor
+    p_element = anchor_paragraph._p
+    parent = p_element.getparent()
+    anchor_index = list(parent).index(p_element)
+
+    new_paragraphs = []
+
+    # Track approximate space usage for overflow warning
+    # Page 4 has ~7" of vertical space; each event is ~0.25", date header ~0.4"
+    estimated_height = 0.0
+
+    for i, (date_str, day_events) in enumerate(sorted(by_date.items())):
+        d = date.fromisoformat(date_str)
+        day_name, date_label, ordinal_suffix, _ = _format_event_date(d)
+
+        # Spacer paragraph between weeks (so left border doesn't bleed into space-before)
+        if i > 0:
+            spacer = doc.add_paragraph()
+            spacer.paragraph_format.space_before = Pt(0)
+            spacer.paragraph_format.space_after = Pt(0)
+            sp_run = spacer.add_run("")
+            sp_run.font.size = Pt(8)
+            new_paragraphs.append(spacer)
+
+        # Date header — uses left border accent instead of bottom line
+        header_p = doc.add_paragraph()
+        header_p.paragraph_format.space_before = Pt(0)
+        header_p.paragraph_format.space_after = Pt(4)
+        header_p.paragraph_format.left_indent = Inches(0.15)
+
+        r1 = header_p.add_run(day_name)
+        r1.font.name = base_font
+        r1.font.size = Pt(header_size)
+        r1.font.bold = True
+        r1.font.color.rgb = CALENDAR_OLIVE
+
+        r2 = header_p.add_run(f"  ·  {date_label}")
+        r2.font.name = base_font
+        r2.font.size = Pt(header_size)
+        r2.font.bold = True
+        r2.font.color.rgb = CALENDAR_OLIVE
+
+        r3 = header_p.add_run(ordinal_suffix)
+        r3.font.name = base_font
+        r3.font.size = Pt(header_size)
+        r3.font.bold = True
+        r3.font.color.rgb = CALENDAR_OLIVE
+        r3.font.superscript = True
+
+        _add_olive_left_border(header_p)
+        new_paragraphs.append(header_p)
+        estimated_height += 0.45
+
+        # Events for this date
+        # Tab stops: time | title | location aligned at fixed columns
+        for event in day_events:
+            ev_p = doc.add_paragraph()
+            ev_p.paragraph_format.space_before = Pt(2)
+            ev_p.paragraph_format.space_after = Pt(0)
+            ev_p.paragraph_format.left_indent = Inches(0.4)
+
+            # Time at 0.4", title at 1.5", location at 3.6"
+            tab_stops = ev_p.paragraph_format.tab_stops
+            tab_stops.add_tab_stop(Inches(1.5))
+            tab_stops.add_tab_stop(Inches(3.6))
+
+            time_run = ev_p.add_run(event.get("time", ""))
+            time_run.font.name = base_font
+            time_run.font.size = Pt(base_size)
+            time_run.font.bold = True
+            time_run.font.color.rgb = CALENDAR_OLIVE
+
+            title_run = ev_p.add_run(f"\t{event.get('title', '')}")
+            title_run.font.name = base_font
+            title_run.font.size = Pt(base_size)
+
+            location = event.get("location", "")
+            if location:
+                loc_run = ev_p.add_run(f"\t{location}")
+                loc_run.font.name = base_font
+                loc_run.font.size = Pt(max(base_size - 1, 8))
+                loc_run.font.italic = True
+                loc_run.font.color.rgb = RGBColor(0x80, 0x80, 0x80)
+
+            new_paragraphs.append(ev_p)
+            estimated_height += 0.25
+
+    # Add the optional note if enabled
+    note = calendar_data.get_note(service_date_str)
+    if note.get("enabled") and note.get("text", "").strip():
+        # Ornate olive divider: ──────── ❦ ────────
+        divider_p = doc.add_paragraph()
+        divider_p.paragraph_format.space_before = Pt(18)
+        divider_p.paragraph_format.space_after = Pt(0)
+        divider_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+        ornament_text = "────────  ❦  ────────"
+        div_run = divider_p.add_run(ornament_text)
+        div_run.font.name = base_font
+        div_run.font.size = Pt(base_size + 1)
+        div_run.font.color.rgb = CALENDAR_OLIVE
+
+        new_paragraphs.append(divider_p)
+
+        note_p = doc.add_paragraph()
+        note_p.paragraph_format.space_before = Pt(10)
+        note_p.paragraph_format.space_after = Pt(0)
+
+        # Apply justification
+        align = note.get("align", "left")
+        if align == "center":
+            note_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        elif align == "right":
+            note_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        else:
+            note_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+        label_run = note_p.add_run("Note: ")
+        label_run.font.name = base_font
+        label_run.font.size = Pt(max(base_size - 1, 8))
+        label_run.font.bold = True
+        label_run.font.color.rgb = CALENDAR_OLIVE
+
+        text_run = note_p.add_run(note["text"])
+        text_run.font.name = base_font
+        text_run.font.size = Pt(max(base_size - 1, 8))
+        text_run.font.bold = bool(note.get("bold"))
+        text_run.font.italic = bool(note.get("italic"))
+
+        new_paragraphs.append(note_p)
+
+    # Move new paragraphs from end of doc to anchor position, then remove anchor
+    for offset, p in enumerate(new_paragraphs):
+        parent.insert(anchor_index + offset, p._p)
+
+    # Remove the anchor (placeholder) paragraph
+    parent.remove(p_element)
+
+    return {
+        "events": len(events),
+        "dates": len(by_date),
+        "estimated_height_in": estimated_height,
+        "overflow_warning": estimated_height > 7.0,
+    }
+
+
 def generate_bulletin(order: OrderOfWorship) -> Path:
     """Generate a Word bulletin by replacing placeholders in the template."""
 
@@ -192,6 +415,16 @@ def generate_bulletin(order: OrderOfWorship) -> Path:
     # Replace theme image
     theme_path = OUTPUT_DIR / order.themeImageFilename if order.themeImageFilename else None
     _replace_theme_image(doc, theme_path)
+
+    # Render calendar block (if placeholder exists in template)
+    calendar_anchor = None
+    for paragraph in doc.paragraphs:
+        if '{{CALENDAR_BLOCK}}' in paragraph.text:
+            calendar_anchor = paragraph
+            break
+
+    if calendar_anchor:
+        _render_calendar_block(doc, calendar_anchor, order.date)
 
     # Save
     OUTPUT_DIR.mkdir(exist_ok=True)

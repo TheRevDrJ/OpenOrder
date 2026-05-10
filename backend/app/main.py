@@ -15,6 +15,7 @@ from .models import OrderOfWorship
 from .bulletin import generate_bulletin
 from .slides import generate_slides
 from .scripture import fetch_scripture, get_available_translations, parse_reference
+from . import calendar_data
 
 app = FastAPI(title="Order of Worship")
 
@@ -174,6 +175,7 @@ EXPECTED_PLACEHOLDERS = [
     '{{SCRIPTURE}}', '{{SPEAKER}}',
     '{{SERMON_TITLE}}', '{{SERMON_SUBTITLE}}',
     '{{CLOSING_HYMN_NUMBER}}', '{{CLOSING_HYMN_TITLE}}',
+    '{{CALENDAR_BLOCK}}',
 ]
 
 
@@ -281,6 +283,88 @@ def api_set_data_dir(body: dict):
     from .hymnal import _load_index
     _load_index()
     return {"data_dir": new_dir, "status": "ok"}
+
+
+# --- Calendar ---
+
+@app.get("/api/calendar/templates")
+def get_calendar_templates():
+    return calendar_data.list_templates()
+
+
+@app.post("/api/calendar/templates")
+def create_calendar_template(template: dict):
+    return calendar_data.add_template(template)
+
+
+@app.put("/api/calendar/templates/{template_id}")
+def update_calendar_template(template_id: str, updates: dict):
+    result = calendar_data.update_template(template_id, updates)
+    if not result:
+        raise HTTPException(404, "Template not found")
+    return result
+
+
+@app.delete("/api/calendar/templates/{template_id}")
+def delete_calendar_template(template_id: str):
+    if not calendar_data.delete_template(template_id):
+        raise HTTPException(404, "Template not found")
+    return {"deleted": True}
+
+
+@app.get("/api/calendar/events")
+def get_calendar_events():
+    return calendar_data.list_events()
+
+
+@app.post("/api/calendar/events")
+def create_calendar_event(event: dict):
+    return calendar_data.add_event(event)
+
+
+@app.put("/api/calendar/events/{event_id}")
+def update_calendar_event(event_id: str, updates: dict):
+    result = calendar_data.update_event(event_id, updates)
+    if not result:
+        raise HTTPException(404, "Event not found")
+    return result
+
+
+@app.delete("/api/calendar/events/{event_id}")
+def delete_calendar_event(event_id: str):
+    if not calendar_data.delete_event(event_id):
+        raise HTTPException(404, "Event not found")
+    return {"deleted": True}
+
+
+@app.get("/api/calendar/overrides")
+def get_calendar_overrides():
+    return calendar_data.list_overrides()
+
+
+@app.post("/api/calendar/overrides/skip")
+def set_calendar_skip(body: dict):
+    """Toggle skip for a recurring event instance.
+    Body: {templateId, date, skip: bool}"""
+    return calendar_data.toggle_skip(
+        body["templateId"], body["date"], bool(body.get("skip", False))
+    )
+
+
+@app.get("/api/calendar/for-service/{service_date}")
+def get_calendar_for_service(service_date: str):
+    """Get all events for the 4 weeks following the service date."""
+    return calendar_data.get_calendar_for_service(service_date)
+
+
+@app.get("/api/calendar/note/{service_date}")
+def get_calendar_note(service_date: str):
+    return calendar_data.get_note(service_date)
+
+
+@app.post("/api/calendar/note/{service_date}")
+def save_calendar_note(service_date: str, note: dict):
+    return calendar_data.save_note(service_date, note)
 
 
 # --- File downloads ---
