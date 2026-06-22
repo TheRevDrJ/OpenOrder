@@ -29,9 +29,9 @@
     </g>
     <!-- White center divider -->
     <line x1="210" y1="7" x2="210" y2="303" stroke="white" stroke-width="6"/>
-    <!-- Cross — centered in left half (cx=105, cy=155) -->
-    <rect x="91" y="72" width="28" height="166" rx="3" fill="white"/>
-    <rect x="48" y="115" width="115" height="28" rx="3" fill="white"/>
+    <!-- Cross — optically centered in the lens (nudged right to match the family) -->
+    <rect x="105" y="72" width="28" height="166" rx="3" fill="white"/>
+    <rect x="62" y="115" width="115" height="28" rx="3" fill="white"/>
     <!-- Order of worship lines — right half (cx=315, cy=155) -->
     <circle cx="248" cy="110" r="7" fill="white" opacity="1"/>
     <rect x="264" y="103" width="95" height="14" rx="7" fill="white" opacity="1"/>
