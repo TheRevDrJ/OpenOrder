@@ -23,7 +23,7 @@ OpenOrder streamlines the weekly task of preparing Sunday worship materials. Ent
 ## Prerequisites
 
 - Python 3.10+
-- Node.js 18+
+- Node.js 20+
 - Hymnal data in JSON format (see [Hymnal Data](#hymnal-data) below)
 
 ## Getting Started
@@ -200,7 +200,8 @@ OpenOrder/
 ├── hymnal-json/             # (gitignored) Your hymnal data
 ├── scripture-cache/         # (gitignored) Cached scripture fetches
 ├── output/                  # (gitignored) Generated files
-└── OpenOrder.bat            # Windows launcher (start/stop/restart)
+├── setup.sh / setup.bat     # One-time setup (macOS/Linux · Windows)
+└── openorder.sh / OpenOrder.bat  # Dev server manager (macOS/Linux · Windows)
 ```
 
 ## Themes

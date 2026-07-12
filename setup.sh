@@ -103,6 +103,17 @@ echo "  Installing frontend dependencies (npm install --ignore-scripts) ..."
 chmod +x frontend/node_modules/.bin/* 2>/dev/null || true
 echo "  [OK] Frontend ready."
 
+# --- Hymnal data + working directories ----------------------------------------
+echo
+mkdir -p output scripture-cache
+if [ -f hymnal-json/index.json ]; then
+  echo "  [OK] Hymnal data found."
+else
+  echo "  [!] No hymnal data yet (hymnal-json/ is empty)."
+  echo "      Copy your hymnal-json folder into the project root when ready —"
+  echo "      OpenOrder runs without it, but hymn search will come up empty."
+fi
+
 echo
 echo "  [OK] Setup complete. Start OpenOrder with:"
 echo "        ./openorder.sh start"

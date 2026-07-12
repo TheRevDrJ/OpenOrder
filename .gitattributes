@@ -4,6 +4,8 @@
 # Windows batch files MUST be CRLF — cmd misparses LF batch files
 # (labels break and execution falls through; see the OpenSign incident)
 *.bat text eol=crlf
+# Windows Script Host files — keep CRLF for consistency on their native OS
+*.vbs text eol=crlf
 
 # Binaries — never touch line endings
 *.png binary
