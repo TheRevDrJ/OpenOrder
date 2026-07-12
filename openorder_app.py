@@ -61,8 +61,8 @@ def start_server():
 
         import uvicorn
         from app.main import app
-        logger.info("Starting server on port 8316")
-        uvicorn.run(app, host="127.0.0.1", port=8316, log_level="warning")
+        logger.info("Starting server on port 6801")
+        uvicorn.run(app, host="127.0.0.1", port=6801, log_level="warning")
     except Exception:
         logger.error("Server failed to start:\n%s", traceback.format_exc())
 
@@ -73,7 +73,7 @@ def wait_for_server(timeout=10):
     start = time.time()
     while time.time() - start < timeout:
         try:
-            urllib.request.urlopen("http://127.0.0.1:8316/api/health")
+            urllib.request.urlopen("http://127.0.0.1:6801/api/health")
             logger.info("Server is ready")
             return True
         except Exception:
@@ -119,7 +119,7 @@ def main():
 
         window = webview.create_window(
             "OpenOrder",
-            "http://127.0.0.1:8316",
+            "http://127.0.0.1:6801",
             width=1100,
             height=850,
             min_size=(800, 600),

@@ -127,7 +127,7 @@ echo.
 echo   To start OpenOrder:
 echo     OpenOrder start
 echo.
-echo   Then open http://localhost:5173
+echo   Then open http://localhost:6800
 echo.
 
 :: --------------------------------------------------

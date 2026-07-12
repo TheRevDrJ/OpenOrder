@@ -18,7 +18,7 @@ OpenOrder streamlines the weekly task of preparing Sunday worship materials. Ent
 - **Frontend**: React + TypeScript, Tailwind CSS, shadcn/ui
 - **Backend**: Python (FastAPI)
 - **Document Generation**: python-docx, python-pptx
-- **Port**: 8316 (John 3:16)
+- **Ports**: 6800 (frontend dev), 6801 (backend API)
 
 ## Prerequisites
 
@@ -59,14 +59,14 @@ Start both servers:
 
 ```bash
 # Backend (from project root)
-uvicorn backend.app.main:app --host 0.0.0.0 --port 8316
+uvicorn backend.app.main:app --host 0.0.0.0 --port 6801
 
 # Frontend (from frontend/)
 cd frontend
 npm run dev
 ```
 
-Then open **http://localhost:5173** (dev) or **http://localhost:8316** (API).
+Then open **http://localhost:6800** (dev) or **http://localhost:6801** (API).
 
 ## Hymnal Data
 

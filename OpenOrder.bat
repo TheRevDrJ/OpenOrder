@@ -5,7 +5,7 @@ setlocal enabledelayedexpansion
 :: Usage: OpenOrder [start|stop|restart|status|help] [-v]
 
 set "ROOT=%~dp0"
-set "PORT=8316"
+set "PORT=6801"
 set "VERBOSE=0"
 
 :: Parse arguments
