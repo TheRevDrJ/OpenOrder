@@ -1,0 +1,15 @@
+# Normalize text to LF in the repo and on disk (we develop on macOS)
+* text=auto eol=lf
+
+# Windows batch files MUST be CRLF — cmd misparses LF batch files
+# (labels break and execution falls through; see the OpenSign incident)
+*.bat text eol=crlf
+
+# Binaries — never touch line endings
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.ppt binary
+*.pptx binary
+*.exe binary

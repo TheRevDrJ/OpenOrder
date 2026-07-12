@@ -1,51 +1,68 @@
-# Python
+# ───────────────────────────────────────────────────────────────
+# Local-only files — kept out of the repo by location.
+# Keep every comment on its OWN line; an inline comment silently
+# breaks the ignore pattern it shares a line with.
+# ───────────────────────────────────────────────────────────────
+
+# Project-private working notes (local to each developer)
+rules_project.md
+STATE.md
+# User data — calendar templates, events, notes
+/data/
+# Local tooling / editor config
+.claude/
+# Commit-message scratch file
+.bobcommit
+
+# ───────────────────────────────────────────────────────────────
+# Copyrighted / per-user content — never commit
+# ───────────────────────────────────────────────────────────────
+
+# Hymnal lyrics data (copyrighted material)
+hymnal-json/
+# Scripture cache (user-fetched Bible text)
+scripture-cache/
+# Source hymnal files (large binary)
+*.ppt
+*.pptx
+# Uploaded theme images
+backend/uploads/
+# Generated bulletins/slides
+output/
+# App settings (per-user)
+settings.json
+
+# ───────────────────────────────────────────────────────────────
+# Build / dependency artifacts (regenerable)
+# ───────────────────────────────────────────────────────────────
+node_modules/
+dist/
+build/
+*.spec
 __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
 venv/
 env/
-
-# Node
-node_modules/
-dist/
 .vite/
+*.exe
+# Runtime logs from the dev-server manager (may contain local paths)
+*.log
 
-# Output files (generated bulletins/slides)
-output/
-
-# Uploaded theme images
-backend/uploads/
-
-# OS files
+# ───────────────────────────────────────────────────────────────
+# Editor / OS noise
+# ───────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 desktop.ini
-
-# IDE
 .vscode/
 .idea/
 *.swp
+*.tmp.*
 
+# ───────────────────────────────────────────────────────────────
 # Environment
+# ───────────────────────────────────────────────────────────────
 .env
 .env.local
-
-# Hymnal lyrics data (copyrighted material — do NOT commit)
-hymnal-json/
-
-# Scripture cache (user-fetched Bible text — per-user data)
-scripture-cache/
-
-# Calendar data (per-church templates, events, notes — user data)
-data/
-
-# Source hymnal files (large binary)
-*.ppt
-*.pptx
-
-# PyInstaller build artifacts
-build/
-dist/
-*.spec
-settings.json
