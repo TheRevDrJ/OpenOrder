@@ -35,35 +35,38 @@ git clone https://github.com/TheRevDrJ/OpenOrder.git
 cd OpenOrder
 ```
 
-### 2. Set up the backend
+### 2. Install dependencies
+
+**macOS / Linux** — one script checks the toolchain (Node 20+, Python 3.10+),
+creates `backend/.venv`, and installs both halves:
 
 ```bash
-pip install -r backend/requirements.txt
+./setup.sh
 ```
 
-### 3. Set up the frontend
+**Windows**:
 
-```bash
-cd frontend
-npm install
-cd ..
+```bat
+setup.bat
 ```
 
-### 4. Add your hymnal data
+### 3. Add your hymnal data
 
 See [Hymnal Data](#hymnal-data) below for details on providing your own lyrics.
 
-### 5. Run the app
+### 4. Run the app
 
-Start both servers:
+**macOS / Linux** — the dev-server manager starts, stops, and reports on both
+servers:
 
 ```bash
-# Backend (from project root)
-uvicorn backend.app.main:app --host 0.0.0.0 --port 6801
+./openorder.sh start     # also: stop | restart | status | verbose | log
+```
 
-# Frontend (from frontend/)
-cd frontend
-npm run dev
+**Windows**:
+
+```bat
+OpenOrder.bat            # also: stop | restart | status
 ```
 
 Then open **http://localhost:6800** (dev) or **http://localhost:6801** (API).
