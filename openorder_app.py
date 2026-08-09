@@ -99,8 +99,16 @@ def main():
         import webview
         logger.info("Opening webview window")
 
-        # Find icon path — bundled or dev
-        if getattr(sys, 'frozen', False):
+        # Find icon path — bundled or dev.
+        #
+        # macOS gets NOTHING on purpose: the .app bundle already carries the
+        # right icon (openorder.icns), and macOS uses it for both the Dock and
+        # the running app. Passing an icon here overrides that at runtime with
+        # the WINDOWS .ico — which is why the Dock icon used to be correct
+        # until you launched the app, and then turned back into the old one.
+        if sys.platform == "darwin":
+            icon_path = None
+        elif getattr(sys, 'frozen', False):
             icon_path = os.path.join(sys._MEIPASS, "resources", "images", "openorder.ico")
         else:
             icon_path = os.path.join(BASE_DIR, "resources", "images", "openorder.ico")
@@ -127,7 +135,7 @@ def main():
         )
 
         # Start the webview event loop (blocks until window is closed)
-        webview.start(icon=icon_path if os.path.exists(icon_path) else None)
+        webview.start(icon=icon_path if icon_path and os.path.exists(icon_path) else None)
         logger.info("Window closed, shutting down")
     except Exception:
         logger.error("Webview failed:\n%s", traceback.format_exc())
