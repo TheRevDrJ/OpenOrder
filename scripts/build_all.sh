@@ -74,5 +74,5 @@ echo
 echo "=================================================="
 echo " JOINT BUILD COMPLETE - v$VER build $N"
 echo "   mac      /Applications/OpenOrder.app"
-echo "   windows  phoenix c:\\claude\\OpenOrder-win\\  + ~/claude-build/openorder-stage/"
+printf "   windows  phoenix %s\\\\  + ~/claude-build/openorder-stage/\\n" "c:\\claude\\OpenOrder-win"
 echo "=================================================="
