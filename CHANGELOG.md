@@ -2,6 +2,15 @@
 
 What has changed in each release of OpenOrder, newest first.
 
+## 1.4.2 — 2026-08-09 · The Windows icon fix actually reaches the application
+
+*1.4.1 corrected the icon; this is what makes the corrected icon end up in the
+program you run.*
+
+- **Fixed:** the Windows build reused cached pieces of the previous build, so a
+  changed icon never made it into the finished application. Windows builds now
+  rebuild that step from scratch.
+
 ## 1.4.1 — 2026-08-09 · The Windows icon is an oval again, at every size
 
 *Matching what the macOS icon got right, in the way Windows expects it.*

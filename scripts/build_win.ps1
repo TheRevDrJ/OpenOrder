@@ -50,7 +50,16 @@ Pop-Location
 # NOTE the --add-data separator: Windows uses ';', macOS/Linux ':'. Getting
 # this wrong silently produces a bundle with no frontend and no resources.
 Write-Output '[2/4] Packaging with PyInstaller ...'
+# CLEAR THE WORK DIR TOO, NOT JUST DIST. PyInstaller caches intermediate build
+# products - including the assembled exe with its icon resource already baked
+# in - and will happily reuse them when only a RESOURCE changed. That is how
+# builds 5-8 shipped the OLD icon while resources\images\openorder.ico on this
+# very machine hashed identical to the corrected one on the Mac: the source was
+# right, the cache was stale, and every check that looked at the source passed.
+# build.sh has always cleared its workpath; this script did not, and the whole
+# difference was that one missing line.
 Remove-Item -Recurse -Force "$Dist\OpenOrder" -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force "$Work\OpenOrder" -ErrorAction SilentlyContinue
 & $Py -m PyInstaller --noconfirm --onedir --windowed `
   --name 'OpenOrder' `
   --icon 'resources\images\openorder.ico' `
