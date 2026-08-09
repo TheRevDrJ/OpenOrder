@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator'
 import { HymnPicker } from '@/components/HymnPicker'
 import { SettingsPanel } from '@/components/SettingsPanel'
 import { CalendarTab } from '@/components/CalendarTab'
+import { Toast, type ToastData } from '@/components/Toast'
 import { getHealth, saveService, loadService, listServices, uploadThemeImage, downloadUrl } from '@/lib/api'
 import type { OrderOfWorship, StaffMember } from '@/types'
 import { emptyOrder } from '@/types'
@@ -110,6 +111,13 @@ function App() {
   }
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [toast, setToast] = useState<ToastData | null>(null)
+
+  // The desktop app has no download bar, so a generated file lands silently.
+  // This is the receipt: what was made, and where it went.
+  function confirmSaved(kind: string, data: { filename: string; folder?: string }) {
+    setToast({ id: Date.now(), message: `${kind} saved`, detail: data.folder || data.filename })
+  }
   const [scripturePreview, setScripturePreview] = useState<{verses: {number: number, text: string}[], translation_name: string} | null>(null)
   const [loadingScripture, setLoadingScripture] = useState(false)
   const scriptureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -161,6 +169,7 @@ function App() {
       if (res.ok) {
         const data = await res.json()
         window.open(downloadUrl(data.filename), '_blank')
+        confirmSaved('Bulletin', data)
       } else {
         const err = await res.json()
         setErrorMsg(err.detail || 'Failed to generate bulletin')
@@ -183,6 +192,7 @@ function App() {
       if (res.ok) {
         const data = await res.json()
         window.open(downloadUrl(data.filename), '_blank')
+        confirmSaved('Presentation', data)
       } else {
         const err = await res.json()
         setErrorMsg(err.detail || 'Failed to generate slides')
@@ -518,6 +528,7 @@ function App() {
         </>}
       </div>
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <Toast toast={toast} onDone={() => setToast(null)} />
     </div>
   )
 }

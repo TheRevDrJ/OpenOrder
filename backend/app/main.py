@@ -144,7 +144,9 @@ def gen_bulletin(service_date: str):
         import traceback, logging
         logging.getLogger("OpenOrder").error("Bulletin generation failed:\n%s", traceback.format_exc())
         raise HTTPException(500, f"Bulletin generation failed: {str(e)}")
-    return {"filename": filepath.name}
+    # The folder travels with the name so the UI can tell the user WHERE it
+    # landed — there is no browser download bar in the desktop app.
+    return {"filename": filepath.name, "folder": str(filepath.parent)}
 
 
 @app.post("/api/generate/slides/{service_date}")
@@ -164,7 +166,7 @@ def gen_slides(service_date: str):
         import traceback, logging
         logging.getLogger("OpenOrder").error("Slide generation failed:\n%s", traceback.format_exc())
         raise HTTPException(500, f"Slide generation failed: {str(e)}")
-    return {"filename": filepath.name}
+    return {"filename": filepath.name, "folder": str(filepath.parent)}
 
 
 # --- Scripture ---
