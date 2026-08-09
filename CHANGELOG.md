@@ -2,6 +2,28 @@
 
 What has changed in each release of OpenOrder, newest first.
 
+## 1.4.0 — 2026-08-09 · Windows builds, produced and tested every release
+
+*OpenOrder is now built for Windows and macOS together, from the same source, as
+one release.*
+
+- **Added:** a Windows build pipeline. Every release now produces a macOS app and
+  a Windows app from the same commit, both carrying the same build number, with
+  the Windows build installed onto a test machine automatically.
+- **Added:** every Windows build is checksum-verified when it lands, so a
+  truncated or corrupted transfer can't be mistaken for a bug in the app.
+- **Note for Windows:** the app finds your hymnal through the Hymnal Folder
+  setting rather than expecting it inside the application, which keeps hymnal
+  lyrics out of the distributed files entirely.
+
+## 1.3.1 — 2026-08-09 · Uploading a template no longer looks like it failed
+
+*A display fix, but an alarming one: it read as though your template had vanished.*
+
+- **Fixed:** after uploading a bulletin template, Settings reported "No template
+  found" and disabled Download, even though the upload had succeeded and the file
+  was safely stored. Both now reflect the real state.
+
 ## 1.3.0 — 2026-08-09 · Download your bulletin template, and keep it through updates
 
 *Template handling that actually works end to end: see the format, edit it, put it
