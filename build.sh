@@ -127,6 +127,9 @@ if [ "$INSTALLED_V" != "$VERSION" ] || [ "$INSTALLED_B" != "$BUILD_NUMBER" ]; th
   exit 1
 fi
 echo "        Installed and verified: $INSTALLED_V ($INSTALLED_B)"
+# Nudge the icon cache — macOS caches Dock/Finder icons by bundle mtime, so a
+# changed icon can otherwise keep showing the previous one.
+touch "/Applications/OpenOrder.app"
 
 echo
 echo "  ============================"

@@ -1,0 +1,65 @@
+<!--
+  OpenOrder — macOS app icon.
+
+  NOT the product logo. openorder-logo.svg is a 420x310 canvas holding the bare
+  oval on transparency, which is right for a web header and wrong for an app
+  icon: squeezed into a square .icns it gives macOS no canvas to work with, so
+  the Dock draws the bare ellipse — round, unpadded, and visually larger than
+  every squircle beside it.
+
+  This is that logo mounted on a proper icon canvas, following Apple's macOS
+  grid: a 1024 artboard with the rounded square inset to 824x824 (corner radius
+  185), so OpenOrder sits at the same visual size as every other app in the Dock.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="blue-grad" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0%" stop-color="#4A90D9"/>
+      <stop offset="100%" stop-color="#1A4A7A"/>
+    </linearGradient>
+    <linearGradient id="orange-grad" x1="0.7" y1="0" x2="0.3" y2="1">
+      <stop offset="0%" stop-color="#F5A623"/>
+      <stop offset="100%" stop-color="#D4792A"/>
+    </linearGradient>
+    <clipPath id="left-half">
+      <rect x="0" y="0" width="210" height="310"/>
+    </clipPath>
+    <clipPath id="right-half">
+      <rect x="210" y="0" width="210" height="310"/>
+    </clipPath>
+    <clipPath id="oval-clip">
+      <ellipse cx="210" cy="155" rx="200" ry="148"/>
+    </clipPath>
+  </defs>
+
+  <!-- The icon canvas: dark charcoal, Apple's 824x824 squircle inset in 1024 -->
+  <rect x="100" y="100" width="824" height="824" rx="185" ry="185" fill="#2C2E33"/>
+
+  <!-- The product mark, centered on that canvas -->
+  <g transform="translate(192, 276) scale(1.5238)">
+    <g clip-path="url(#oval-clip)">
+      <g clip-path="url(#left-half)">
+        <rect x="0" y="0" width="420" height="310" fill="url(#blue-grad)"/>
+      </g>
+      <g clip-path="url(#right-half)">
+        <rect x="0" y="0" width="420" height="310" fill="url(#orange-grad)"/>
+      </g>
+      <!-- White center divider -->
+      <line x1="210" y1="7" x2="210" y2="303" stroke="white" stroke-width="6"/>
+      <!-- Cross — optically centered in the lens (nudged right to match the family) -->
+      <rect x="101" y="72" width="28" height="166" rx="3" fill="white"/>
+      <rect x="58" y="115" width="115" height="28" rx="3" fill="white"/>
+      <!-- Order of worship lines — right half (cx=315, cy=155) -->
+      <circle cx="248" cy="104" r="7" fill="white" opacity="1"/>
+      <rect x="264" y="97" width="95" height="14" rx="7" fill="white" opacity="1"/>
+      <circle cx="248" cy="144" r="7" fill="white" opacity="0.82"/>
+      <rect x="264" y="137" width="74" height="14" rx="7" fill="white" opacity="0.82"/>
+      <circle cx="248" cy="184" r="7" fill="white" opacity="0.62"/>
+      <rect x="264" y="177" width="84" height="14" rx="7" fill="white" opacity="0.62"/>
+      <circle cx="248" cy="224" r="7" fill="white" opacity="0.38"/>
+      <rect x="264" y="217" width="60" height="14" rx="7" fill="white" opacity="0.38"/>
+    </g>
+    <!-- Oval outline -->
+    <ellipse cx="210" cy="155" rx="200" ry="148" fill="none" stroke="white" stroke-width="4"/>
+  </g>
+</svg>

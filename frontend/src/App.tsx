@@ -168,7 +168,9 @@ function App() {
       const res = await fetch(`/api/generate/bulletin/${order.date}`, { method: 'POST' })
       if (res.ok) {
         const data = await res.json()
-        window.open(downloadUrl(data.filename), '_blank')
+        // No window.open: the server has already written the file to the
+        // output folder. In the desktop app that call did nothing; in a
+        // browser it downloaded a second copy alongside the real one.
         confirmSaved('Bulletin', data)
       } else {
         const err = await res.json()
@@ -191,7 +193,6 @@ function App() {
       const res = await fetch(`/api/generate/slides/${order.date}`, { method: 'POST' })
       if (res.ok) {
         const data = await res.json()
-        window.open(downloadUrl(data.filename), '_blank')
         confirmSaved('Presentation', data)
       } else {
         const err = await res.json()
