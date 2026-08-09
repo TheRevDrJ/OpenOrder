@@ -58,9 +58,21 @@ grep -rn "OO-0NN" backend/ frontend/src/ scripts/
 
 # Active
 
+*(nothing open)*
+
+---
+
+# Feature requests
+
+*(none open)*
+
+---
+
+# Closed
+
 ## OO-002 — The Windows icon renders as a circle instead of an oval
 - **Category:** BUILD
-- **Severity:** LOW  **Status:** FIXED (unverified)  **Reported:** 2026-08-09 (Bob, confirmed by Jonathan)
+- **Severity:** LOW  **Status:** VERIFIED  **Reported:** 2026-08-09 (Bob, confirmed by Jonathan)
 - **Seen in:** v1.4.0 build 7 · packaged app · Windows (phoenix)
 - **Report:** Suspected from source, then confirmed by Jonathan on phoenix:
   *"open order's icon on windows is what we had it set as before. It is round
@@ -118,21 +130,10 @@ grep -rn "OO-0NN" backend/ frontend/src/ scripts/
   ⛔ **Not done, deliberately:** restarting Explorer, which is the remaining
   standard remedy. Process-stops are destructive-tier (`rules.md` §12) and he
   didn't ask for one; it's one command whenever he wants it.
-- **Test-verified:** **NO** — proven at two levels (the file, and the shell API's
-  answer for that path), but not yet seen drawn by Explorer. **For Jonathan:**
-  open `c:\claude\icon-check\` — if that copy shows an oval, this is confirmed
-  and the original path is only waiting on Explorer to rebuild its cache
-  (a sign-out/in or `Stop-Process -Name explorer` finishes it).
-
----
-
-# Feature requests
-
-*(none open)*
-
----
-
-# Closed
+- **Test-verified:** **YES** — Jonathan on phoenix, build 9: *"Verified."* The
+  control copy at the uncached path settled it, and he named the step that
+  finishes the original path: *"I should have restarted explorer before."*
+  (2026-08-09, v1.4.2 build 9)
 
 ## FR-001 — Build and test OpenOrder on Windows
 - **Category:** BUILD
