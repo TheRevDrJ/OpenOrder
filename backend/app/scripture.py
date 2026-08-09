@@ -8,7 +8,7 @@ from pathlib import Path
 import httpx
 import pythonbible as bible
 
-from .paths import SCRIPTURE_CACHE_DIR as CACHE_DIR
+from . import paths
 API_BASE = "https://bible.helloao.org/api"
 
 # pythonbible Book enum -> USFM 3-letter code (used by AO Lab API)
@@ -117,7 +117,7 @@ def _cache_path(reference: str, translation: str) -> Path:
     """Get cache file path for a scripture reference."""
     # Sanitize the reference for use as a filename
     safe_ref = re.sub(r'[^\w\s\-]', '', reference).strip().replace(' ', '_')
-    return CACHE_DIR / translation / f"{safe_ref}.json"
+    return paths.SCRIPTURE_CACHE_DIR / translation / f"{safe_ref}.json"
 
 
 def _load_cached(reference: str, translation: str) -> dict | None:

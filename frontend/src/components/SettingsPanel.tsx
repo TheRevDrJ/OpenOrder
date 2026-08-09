@@ -10,8 +10,28 @@ interface TemplateInfo {
   total_expected: number
 }
 
+// The three configurable locations. Order is deliberate: the one people change
+// most often (where their files land) sits at the top.
+const FOLDERS = [
+  {
+    key: 'output_dir',
+    label: 'Output Folder',
+    hint: 'Where generated bulletins and slides are saved.',
+  },
+  {
+    key: 'data_dir',
+    label: 'Calendar Folder',
+    hint: 'Your recurring events, one-offs, and notes are kept here.',
+  },
+  {
+    key: 'hymnal_dir',
+    label: 'Hymnal Folder',
+    hint: 'The folder holding your hymnal JSON files.',
+  },
+] as const
+
 export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [dataDir, setDataDir] = useState('')
+  const [dirs, setDirs] = useState<Record<string, string>>({})
   const [templateInfo, setTemplateInfo] = useState<TemplateInfo | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadResult, setUploadResult] = useState<TemplateInfo | null>(null)
@@ -22,33 +42,36 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
 
   useEffect(() => {
     if (open) {
-      fetch('/api/settings').then(r => r.json()).then(d => setDataDir(d.data_dir_current || ''))
+      fetch('/api/settings').then(r => r.json()).then(setDirs)
       fetch('/api/template/info').then(r => r.json()).then(setTemplateInfo)
     }
   }, [open])
 
-  async function handleChangeDir() {
+  async function handleChangeDir(key: string, label: string) {
     const pywebview = (window as any).pywebview
     let dir: string | null = null
 
     if (pywebview?.api?.pick_folder) {
       dir = await pywebview.api.pick_folder()
     } else {
-      dir = prompt('Data directory path:', dataDir)
+      dir = prompt(`${label} path:`, dirs[key] || '')
     }
 
     if (dir) {
       dir = dir.replace(/\\\\/g, '/').replace(/\\/g, '/')
-      const res = await fetch('/api/settings/data-dir', {
+      const res = await fetch('/api/settings/dir', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data_dir: dir })
+        body: JSON.stringify({ key, path: dir })
       })
       if (res.ok) {
-        window.location.reload()
+        setDirs(await res.json())
+        // The hymnal index is cached server-side; a reload keeps the open
+        // form in step with whatever the new folder holds.
+        if (key === 'hymnal_dir') window.location.reload()
       } else {
         const err = await res.json()
-        alert(err.detail || 'Failed to set directory')
+        alert(err.detail || 'Failed to set folder')
       }
     }
   }
@@ -112,15 +135,25 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
         </div>
 
         <div className="p-4 space-y-6">
-          {/* Data Directory */}
+          {/* Folders */}
           <div>
-            <Label className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Data Directory</Label>
-            <p className="text-sm text-foreground mt-1 font-mono bg-muted rounded px-2 py-1.5 break-all">
-              {dataDir || 'Not set'}
-            </p>
-            <Button variant="outline" size="sm" className="mt-2" onClick={handleChangeDir}>
-              Change Directory
-            </Button>
+            <Label className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Folders</Label>
+            <div className="mt-2 space-y-4">
+              {FOLDERS.map(({ key, label, hint }) => (
+                <div key={key}>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-sm font-medium text-foreground">{label}</span>
+                    <Button variant="outline" size="sm" onClick={() => handleChangeDir(key, label)}>
+                      Change
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>
+                  <p className="text-sm text-foreground mt-1 font-mono bg-muted rounded px-2 py-1.5 break-all">
+                    {dirs[key] || 'Not set'}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Bulletin Template */}

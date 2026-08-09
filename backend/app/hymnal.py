@@ -4,7 +4,7 @@ import json
 import re
 from pathlib import Path
 
-from .paths import HYMNAL_DIR
+from . import paths
 
 _index: list[dict] | None = None
 
@@ -13,7 +13,7 @@ def _load_index(force: bool = False) -> list[dict]:
     """Load the hymnal index. Use force=True to reload after data_dir change."""
     global _index
     if _index is None or force:
-        from .paths import HYMNAL_DIR as current_hymnal_dir
+        current_hymnal_dir = paths.HYMNAL_DIR
         index_path = current_hymnal_dir / "index.json"
         if index_path.exists():
             with open(index_path, "r", encoding="utf-8") as f:
@@ -64,7 +64,7 @@ def search_hymns(query: str, limit: int = 20) -> list[dict]:
 
 def get_hymn(source: str, filename: str) -> dict | None:
     """Load full hymn data from a JSON file."""
-    path = HYMNAL_DIR / source / filename
+    path = paths.HYMNAL_DIR / source / filename
     if not path.exists():
         return None
     with open(path, "r", encoding="utf-8") as f:

@@ -20,7 +20,8 @@ from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 
 from .models import OrderOfWorship
-from .paths import RESOURCES_DIR, OUTPUT_DIR
+from . import paths
+from .paths import RESOURCES_DIR
 from . import calendar_data
 
 # Olive accent color for calendar block
@@ -413,7 +414,7 @@ def generate_bulletin(order: OrderOfWorship) -> Path:
                             _replace_in_runs(paragraph, placeholder, value)
 
     # Replace theme image
-    theme_path = OUTPUT_DIR / order.themeImageFilename if order.themeImageFilename else None
+    theme_path = paths.OUTPUT_DIR / order.themeImageFilename if order.themeImageFilename else None
     _replace_theme_image(doc, theme_path)
 
     # Render calendar block (if placeholder exists in template)
@@ -427,8 +428,8 @@ def generate_bulletin(order: OrderOfWorship) -> Path:
         _render_calendar_block(doc, calendar_anchor, order.date)
 
     # Save
-    OUTPUT_DIR.mkdir(exist_ok=True)
+    paths.OUTPUT_DIR.mkdir(exist_ok=True)
     filename = f"{order.date} - Bulletin.docx"
-    filepath = OUTPUT_DIR / filename
+    filepath = paths.OUTPUT_DIR / filename
     doc.save(str(filepath))
     return filepath

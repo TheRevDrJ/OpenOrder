@@ -16,12 +16,25 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Optional
 
-from .paths import DATA_DIR
+from . import paths
 
-TEMPLATES_FILE = DATA_DIR / "calendar-templates.json"
-OVERRIDES_FILE = DATA_DIR / "calendar-overrides.json"
-EVENTS_FILE = DATA_DIR / "calendar-events.json"
-NOTES_FILE = DATA_DIR / "calendar-notes.json"
+# Resolved on every call, never snapshotted at import — the calendar folder is
+# user-configurable and can change while the app is running.
+
+def _templates_file() -> Path:
+    return paths.DATA_DIR / "calendar-templates.json"
+
+
+def _overrides_file() -> Path:
+    return paths.DATA_DIR / "calendar-overrides.json"
+
+
+def _events_file() -> Path:
+    return paths.DATA_DIR / "calendar-events.json"
+
+
+def _notes_file() -> Path:
+    return paths.DATA_DIR / "calendar-notes.json"
 
 # How many weeks ahead to show in the bulletin
 WEEKS_AHEAD = 4
@@ -40,7 +53,7 @@ def _load(path: Path) -> list:
 
 
 def _save(path: Path, data: list):
-    DATA_DIR.mkdir(exist_ok=True)
+    paths.DATA_DIR.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
@@ -48,11 +61,11 @@ def _save(path: Path, data: list):
 # --- Templates (recurring events) ---
 
 def list_templates() -> list[dict]:
-    return _load(TEMPLATES_FILE)
+    return _load(_templates_file())
 
 
 def save_templates(templates: list[dict]):
-    _save(TEMPLATES_FILE, templates)
+    _save(_templates_file(), templates)
 
 
 def add_template(template: dict) -> dict:
@@ -84,7 +97,7 @@ def delete_template(template_id: str) -> bool:
         overrides = list_overrides()
         new_overrides = [o for o in overrides if o.get("templateId") != template_id]
         if len(new_overrides) < len(overrides):
-            _save(OVERRIDES_FILE, new_overrides)
+            _save(_overrides_file(), new_overrides)
         return True
     return False
 
@@ -92,7 +105,7 @@ def delete_template(template_id: str) -> bool:
 # --- Overrides (per-instance skips and modifications) ---
 
 def list_overrides() -> list[dict]:
-    return _load(OVERRIDES_FILE)
+    return _load(_overrides_file())
 
 
 def set_override(template_id: str, date_str: str, skip: bool = False,
@@ -114,7 +127,7 @@ def set_override(template_id: str, date_str: str, skip: bool = False,
             override["location"] = location
         overrides.append(override)
 
-    _save(OVERRIDES_FILE, overrides)
+    _save(_overrides_file(), overrides)
     return {"success": True}
 
 
@@ -142,14 +155,14 @@ def toggle_skip(template_id: str, date_str: str, skip: bool) -> dict:
             if "time" not in existing and "location" not in existing:
                 overrides = [o for o in overrides if o is not existing]
 
-    _save(OVERRIDES_FILE, overrides)
+    _save(_overrides_file(), overrides)
     return {"success": True}
 
 
 # --- One-off events ---
 
 def list_events() -> list[dict]:
-    return _load(EVENTS_FILE)
+    return _load(_events_file())
 
 
 def add_event(event: dict) -> dict:
@@ -157,7 +170,7 @@ def add_event(event: dict) -> dict:
     if not event.get("id"):
         event["id"] = str(uuid.uuid4())
     events.append(event)
-    _save(EVENTS_FILE, events)
+    _save(_events_file(), events)
     return event
 
 
@@ -166,7 +179,7 @@ def update_event(event_id: str, updates: dict) -> Optional[dict]:
     for e in events:
         if e["id"] == event_id:
             e.update(updates)
-            _save(EVENTS_FILE, events)
+            _save(_events_file(), events)
             return e
     return None
 
@@ -175,7 +188,7 @@ def delete_event(event_id: str) -> bool:
     events = list_events()
     new_events = [e for e in events if e["id"] != event_id]
     if len(new_events) < len(events):
-        _save(EVENTS_FILE, new_events)
+        _save(_events_file(), new_events)
         return True
     return False
 
@@ -183,18 +196,18 @@ def delete_event(event_id: str) -> bool:
 # --- Notes (per-service-date) ---
 
 def _load_notes() -> dict:
-    if not NOTES_FILE.exists():
+    if not _notes_file().exists():
         return {}
     try:
-        with open(NOTES_FILE, "r", encoding="utf-8") as f:
+        with open(_notes_file(), "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return {}
 
 
 def _save_notes(notes: dict):
-    DATA_DIR.mkdir(exist_ok=True)
-    with open(NOTES_FILE, "w", encoding="utf-8") as f:
+    paths.DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with open(_notes_file(), "w", encoding="utf-8") as f:
         json.dump(notes, f, indent=2, ensure_ascii=False)
 
 

@@ -13,7 +13,8 @@ from .models import OrderOfWorship, HymnRef
 from .scripture import fetch_scripture
 from .themes import get_theme
 
-from .paths import RESOURCES_DIR as RESOURCES, HYMNAL_DIR, OUTPUT_DIR
+from . import paths
+from .paths import RESOURCES_DIR as RESOURCES
 
 # Slide dimensions: 13.333" x 7.500" (widescreen 16:9)
 SLIDE_WIDTH = Emu(12_192_000)
@@ -151,7 +152,7 @@ def _add_creed_background(slide):
 
 def _load_hymn_data(ref: HymnRef) -> dict | None:
     """Load hymn JSON data from the hymnal-json directory."""
-    source_dir = HYMNAL_DIR / ref.source
+    source_dir = paths.HYMNAL_DIR / ref.source
     # Try to find the file by number prefix
     for f in source_dir.glob("*.json"):
         data = json.load(open(f, encoding='utf-8'))
@@ -854,7 +855,7 @@ def generate_slides(order: OrderOfWorship, theme_name: str = None) -> Path:
     # Theme image path
     theme_path = None
     if order.themeImageFilename:
-        candidate = OUTPUT_DIR / order.themeImageFilename
+        candidate = paths.OUTPUT_DIR / order.themeImageFilename
         if candidate.exists():
             theme_path = candidate
 
@@ -924,8 +925,8 @@ def generate_slides(order: OrderOfWorship, theme_name: str = None) -> Path:
     _add_theme_slide(prs, theme_path)
 
     # Save
-    OUTPUT_DIR.mkdir(exist_ok=True)
+    paths.OUTPUT_DIR.mkdir(exist_ok=True)
     filename = f"{order.date} - Slides.pptx"
-    filepath = OUTPUT_DIR / filename
+    filepath = paths.OUTPUT_DIR / filename
     prs.save(str(filepath))
     return filepath

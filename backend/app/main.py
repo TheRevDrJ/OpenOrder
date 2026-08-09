@@ -26,7 +26,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from .paths import OUTPUT_DIR, FRONTEND_DIST_DIR, get_settings, update_data_dir, _data_root
+from . import paths
+from .paths import FRONTEND_DIST_DIR, get_settings
 
 
 def next_sunday() -> str:
@@ -63,13 +64,13 @@ def hymnal_get(source: str, number: str):
 # --- Services (save/load) ---
 
 def _service_path(service_date: str) -> Path:
-    return OUTPUT_DIR / f"{service_date} - Raw.json"
+    return paths.OUTPUT_DIR / f"{service_date} - Raw.json"
 
 
 @app.get("/api/services")
 def list_services():
     """List all saved services."""
-    files = sorted(OUTPUT_DIR.glob("* - Raw.json"), reverse=True)
+    files = sorted(paths.OUTPUT_DIR.glob("* - Raw.json"), reverse=True)
     services = []
     for f in files:
         date_str = f.name.split(" - Raw.json")[0]
@@ -114,7 +115,7 @@ async def upload_theme_image(service_date: str, file: UploadFile):
         ext = '.png'
 
     filename = f"{service_date} - Theme{ext}"
-    dest = OUTPUT_DIR / filename
+    dest = paths.OUTPUT_DIR / filename
     with open(dest, "wb") as f:
         f.write(content)
     return {"filename": filename}
@@ -264,25 +265,53 @@ def scripture_fetch(ref: str = "", translation: str = "BSB"):
 @app.get("/api/settings")
 def api_get_settings():
     settings = get_settings()
-    settings["data_dir_current"] = str(_data_root())
+    settings.update(paths.current_dirs())
+    # Legacy key — the old UI read this one.
+    settings["data_dir_current"] = str(paths.DATA_DIR)
     return settings
+
+
+@app.post("/api/settings/dir")
+def api_set_dir(body: dict):
+    """
+    Point one location at a new folder.
+
+    key: "output_dir" | "data_dir" | "hymnal_dir"
+    """
+    key = (body.get("key") or "").strip()
+    new_dir = (body.get("path") or "").strip()
+    if key not in ("output_dir", "data_dir", "hymnal_dir"):
+        raise HTTPException(400, f"Unknown setting: {key}")
+    if not new_dir:
+        raise HTTPException(400, "path is required")
+
+    new_dir = str(Path(new_dir).expanduser().resolve())
+    p = Path(new_dir)
+    # The hymnal is source material the user supplies, so it must already
+    # exist. The other two are ours to create.
+    if key == "hymnal_dir":
+        if not p.is_dir():
+            raise HTTPException(400, f"Folder does not exist: {new_dir}")
+    else:
+        try:
+            p.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            raise HTTPException(400, f"Could not create folder: {e}")
+
+    paths.set_dir(key, new_dir)
+
+    # The hymnal index is cached in memory — reload it when its folder moves.
+    if key == "hymnal_dir":
+        from .hymnal import _load_index
+        _load_index(force=True)
+
+    return {"status": "ok", **paths.current_dirs()}
 
 
 @app.post("/api/settings/data-dir")
 def api_set_data_dir(body: dict):
-    new_dir = body.get("data_dir", "").strip()
-    if not new_dir:
-        raise HTTPException(400, "data_dir is required")
-    # Normalize path — fix double backslashes, convert forward slashes
-    new_dir = str(Path(new_dir).resolve())
-    p = Path(new_dir)
-    if not p.exists():
-        raise HTTPException(400, f"Directory does not exist: {new_dir}")
-    update_data_dir(new_dir)
-    # Reload the hymnal index since the data dir changed
-    from .hymnal import _load_index
-    _load_index()
-    return {"data_dir": new_dir, "status": "ok"}
+    """Legacy endpoint — sets the calendar/data folder."""
+    return api_set_dir({"key": "data_dir", "path": body.get("data_dir", "")})
 
 
 # --- Calendar ---
@@ -371,7 +400,7 @@ def save_calendar_note(service_date: str, note: dict):
 
 @app.get("/api/download/{filename}")
 def download_file(filename: str):
-    path = OUTPUT_DIR / filename
+    path = paths.OUTPUT_DIR / filename
     if not path.exists():
         raise HTTPException(404, "File not found")
     return FileResponse(path, filename=filename)
