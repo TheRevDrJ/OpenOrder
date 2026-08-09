@@ -2,6 +2,22 @@
 
 What has changed in each release of OpenOrder, newest first.
 
+## 1.3.0 — 2026-08-09 · Download your bulletin template, and keep it through updates
+
+*Template handling that actually works end to end: see the format, edit it, put it
+back — and it stays put.*
+
+- **Added:** a **Download Template** button in Settings. It saves a copy of the
+  template in use to your output folder, so you can open it, see how it's built,
+  and edit it. Uploading was of limited use without it.
+- **Fixed:** an uploaded template was stored inside the application itself, so
+  **installing an update silently replaced your template with the built-in one.**
+  Your template is now kept with your data and survives updates.
+- **Added:** Settings shows whether the template in use is the built-in one or
+  your own.
+- **Changed:** the calendar leaves an extra blank line between weeks, so each
+  week separates more clearly on the printed page.
+
 ## 1.2.1 — 2026-08-09 · The app keeps its own icon while running
 
 *A cosmetic fix, but a visible one.*

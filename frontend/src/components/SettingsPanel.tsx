@@ -5,6 +5,8 @@ import { Label } from '@/components/ui/label'
 interface TemplateInfo {
   exists: boolean
   name: string | null
+  /** false = the template that ships with OpenOrder; true = one you uploaded */
+  custom?: boolean
   found: string[]
   missing: string[]
   total_expected: number
@@ -190,7 +192,9 @@ export function SettingsPanel({
                     <>
                       <span className="font-medium">{templateInfo.name}</span>
                       <span className="text-muted-foreground ml-2">
-                        ({templateInfo.found?.length || 0}/{templateInfo.total_expected} placeholders)
+                        {templateInfo.custom ? 'your template' : 'built-in'}
+                        {' · '}
+                        {templateInfo.found?.length || 0}/{templateInfo.total_expected} placeholders
                       </span>
                     </>
                   ) : (

@@ -33,8 +33,39 @@ CALENDAR_FONT = "Georgia"
 # weeks clearly enough on the printed page.
 CALENDAR_WEEK_GAP_LINES = 2
 
-# Template path — this is the "theme"
-TEMPLATE_PATH = RESOURCES_DIR / "bulletin" / "Template - Bulletin.docx"
+# The bulletin template — this is the "theme".
+#
+# It lives in one of two places, resolved on every use (never snapshotted at
+# import — the data folder is user-configurable and can change while running):
+#
+#   1. the user's own, uploaded through Settings, kept with their data
+#   2. the one that ships with the app, used until they upload one
+#
+# An uploaded template USED TO overwrite the shipped copy inside the app's own
+# resources, which meant the next install silently replaced the user's template
+# with the default — and in development it dirtied the tracked default in git.
+# Keeping the user's copy in their data folder fixes both, and leaves the
+# shipped default able to improve in a later release for anyone who never
+# uploaded one.
+
+TEMPLATE_FILENAME = "Template - Bulletin.docx"
+
+
+def default_template_path() -> Path:
+    """The template that ships with the app."""
+    return RESOURCES_DIR / "bulletin" / TEMPLATE_FILENAME
+
+
+def user_template_path() -> Path:
+    """Where an uploaded template is stored — with the user's data, so that it
+    survives reinstalling or rebuilding the app."""
+    return paths.DATA_DIR / TEMPLATE_FILENAME
+
+
+def template_path() -> Path:
+    """The template actually in use."""
+    user = user_template_path()
+    return user if user.exists() else default_template_path()
 
 
 def _ordinal_date(d: date) -> str:
@@ -383,7 +414,7 @@ def _render_calendar_block(doc, anchor_paragraph, service_date_str: str):
 def generate_bulletin(order: OrderOfWorship) -> Path:
     """Generate a Word bulletin by replacing placeholders in the template."""
 
-    doc = Document(str(TEMPLATE_PATH))
+    doc = Document(str(template_path()))
     service_date = date.fromisoformat(order.date)
 
     # Build the replacement map

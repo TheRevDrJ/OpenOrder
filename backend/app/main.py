@@ -189,13 +189,14 @@ EXPECTED_PLACEHOLDERS = [
 @app.get("/api/template/info")
 def template_info():
     """Return info about the current bulletin template."""
-    from .bulletin import TEMPLATE_PATH
+    from .bulletin import template_path, user_template_path
     from docx import Document
 
-    if not TEMPLATE_PATH.exists():
+    active = template_path()
+    if not active.exists():
         return {"exists": False, "name": None, "placeholders": []}
 
-    doc = Document(str(TEMPLATE_PATH))
+    doc = Document(str(active))
     full_text = '\n'.join(p.text for p in doc.paragraphs)
 
     found = [p for p in EXPECTED_PLACEHOLDERS if p in full_text]
@@ -203,7 +204,8 @@ def template_info():
 
     return {
         "exists": True,
-        "name": TEMPLATE_PATH.name,
+        "name": active.name,
+        "custom": active == user_template_path(),
         "found": found,
         "missing": missing,
         "total_expected": len(EXPECTED_PLACEHOLDERS),
@@ -221,15 +223,16 @@ def export_template():
     say which folder it went to.
     """
     import shutil
-    from .bulletin import TEMPLATE_PATH
+    from .bulletin import template_path
 
-    if not TEMPLATE_PATH.exists():
+    active = template_path()
+    if not active.exists():
         raise HTTPException(404, "No bulletin template is installed yet")
 
     paths.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    dest = paths.OUTPUT_DIR / TEMPLATE_PATH.name
+    dest = paths.OUTPUT_DIR / active.name
     try:
-        shutil.copy2(TEMPLATE_PATH, dest)
+        shutil.copy2(active, dest)
     except PermissionError:
         raise HTTPException(
             409, f"{dest.name} is open in another program (probably Word). Close it and try again."
@@ -259,9 +262,11 @@ async def upload_template(file: UploadFile):
     missing = [p for p in EXPECTED_PLACEHOLDERS if p not in full_text]
 
     # Save it
-    from .bulletin import TEMPLATE_PATH
-    TEMPLATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(TEMPLATE_PATH, "wb") as f:
+    # Uploads go to the USER template location, never over the shipped default.
+    from .bulletin import user_template_path
+    dest_template = user_template_path()
+    dest_template.parent.mkdir(parents=True, exist_ok=True)
+    with open(dest_template, "wb") as f:
         f.write(content)
 
     return {
