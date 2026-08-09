@@ -28,12 +28,12 @@ echo "  ============================"
 echo
 
 # --- 1. Frontend ------------------------------------------------------------
-echo "  [1/3] Building frontend ..."
+echo "  [1/6] Building frontend ..."
 ( cd frontend && npm run build --silent )
 echo "        Done."
 
 # --- 2. PyInstaller ---------------------------------------------------------
-echo "  [2/3] Packaging with PyInstaller (this takes a minute) ..."
+echo "  [2/6] Packaging with PyInstaller (this takes a minute) ..."
 rm -rf "$APP" dist/OpenOrder build/OpenOrder
 "$VENV_PYTHON" -m PyInstaller --noconfirm --onedir --windowed \
     --name "OpenOrder" \
@@ -68,9 +68,10 @@ rm -rf "$APP" dist/OpenOrder build/OpenOrder
 echo "        Done."
 
 # --- 3. Hymnal data ---------------------------------------------------------
-# The app reads user data from the executable's directory inside the bundle
-# (see backend/app/paths.py), so the hymnal rides along there.
-echo "  [3/3] Adding hymnal data ..."
+# Ships beside the executable as the DEFAULT hymnal location for a fresh
+# install. A user who keeps their hymnal elsewhere points hymnal_dir at it in
+# Settings, and this copy is simply never read.
+echo "  [3/6] Adding hymnal data ..."
 if [ -d hymnal-json ] && [ -f hymnal-json/index.json ]; then
   cp -R hymnal-json "$APP/Contents/MacOS/hymnal-json"
   echo "        Copied."
@@ -78,8 +79,57 @@ else
   echo "        No hymnal-json/ found — app will run without hymn search."
 fi
 
+# --- 4. Stamp the version and build number ----------------------------------
+# macOS reads Info.plist. CFBundleVersion is Apple's build string, so Get Info
+# reads "Version 1.1.0 (7)" — semver alone can't tell two builds apart, which
+# is exactly what you need when he says "it's doing X" and you must know which
+# binary he's running.
+echo "  [4/6] Stamping version ..."
+VERSION="$(node -p "require('./frontend/package.json').version")"
+BUILD_NUMBER=$(( $(cat build-number.txt 2>/dev/null || echo 0) + 1 ))
+echo "$BUILD_NUMBER" > build-number.txt
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist" 2>/dev/null \
+  || /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $VERSION" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP/Contents/Info.plist" 2>/dev/null \
+  || /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $BUILD_NUMBER" "$APP/Contents/Info.plist"
+echo "        VERSION: $VERSION"
+echo "        BUILD NUMBER: $BUILD_NUMBER"
+
+# --- 5. Re-sign, LAST ------------------------------------------------------
+# ORDER IS LOAD-BEARING: signing must follow every edit to the bundle (the
+# hymnal copy and the plist stamp above), or the signature won't match the
+# contents and macOS may refuse to launch it. Silence from `codesign -v` is
+# the receipt; any output is a failure, and a bad signature is invisible from
+# the outside — the app still copies and still launches on the machine that
+# built it.
+echo "  [5/6] Signing ..."
+codesign --force --deep --sign - "$APP" 2>/dev/null
+if ! codesign -v "$APP" 2>&1 | grep -q .; then
+  echo "        Signature verified."
+else
+  echo "  [X] SIGNATURE INVALID — refusing to install."
+  codesign -v "$APP"
+  exit 1
+fi
+
+# --- 6. Install and verify the installed copy -------------------------------
+# Copying is where corruption actually happens, and a stale app, a failed copy
+# and a good install all look identical from outside — so read the version
+# back out of the installed bundle rather than trusting that cp worked.
+echo "  [6/6] Installing to /Applications ..."
+rm -rf "/Applications/OpenOrder.app"
+cp -R "$APP" "/Applications/OpenOrder.app"
+INSTALLED_V="$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "/Applications/OpenOrder.app/Contents/Info.plist" 2>/dev/null)"
+INSTALLED_B="$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "/Applications/OpenOrder.app/Contents/Info.plist" 2>/dev/null)"
+if [ "$INSTALLED_V" != "$VERSION" ] || [ "$INSTALLED_B" != "$BUILD_NUMBER" ]; then
+  echo "  [X] INSTALL MISMATCH — /Applications has $INSTALLED_V ($INSTALLED_B),"
+  echo "      expected $VERSION ($BUILD_NUMBER). The copy did not land."
+  exit 1
+fi
+echo "        Installed and verified: $INSTALLED_V ($INSTALLED_B)"
+
 echo
 echo "  ============================"
-echo "  Build complete:  $APP"
-echo "  Launch it with:  open $APP"
+echo "  Build complete:  /Applications/OpenOrder.app"
+echo "  Version $VERSION (build $BUILD_NUMBER)"
 echo
