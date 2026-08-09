@@ -79,10 +79,31 @@ grep -rn "OO-0NN" backend/ frontend/src/ scripts/
   (16/24/32/48/64/128/256). Alpha rebuilt from the ellipse geometry rather than
   trusted from the rasterizer, since qlmanage flattens SVG alpha onto white
   (the OO-001 lesson).
-- **Test-verified:** **NO** — measured locally (opaque extent 230x170, ratio
-  **1.35**, matching the logo; a circle would be 1.00; corners alpha 0), but the
-  icon only exists in the packaged app, so this needs Jonathan looking at
-  `OpenOrder.exe` on phoenix at build 8 or later.
+- **Second cause, found at build 8 — the fix never reached the exe.** Jonathan:
+  *"fixed on the task bar, not in explorer"*, and still round after
+  `ie4uinit.exe -show`. Two failed explanations (the artwork; then Explorer's
+  cache) meant stop reasoning and measure. Probing the built exe's own icon
+  resource showed **one 256px frame, opaque extent 246x248, ratio 0.99 — a
+  circle** — while `resources\images\openorder.ico` hashed **identical** on zora
+  and the Mac. The source was right all along; the exe was stale.
+  **`build_win.ps1` cleared `$Dist` but not `$Work`.** PyInstaller caches
+  intermediate products, including the assembled exe with its icon resource
+  already embedded, and reuses them when only a *resource* changed. `build.sh`
+  had always cleared its workpath; the Windows twin never did. Builds 5-8 all
+  shipped the old icon.
+  ⚠ *The lesson, and it is the day's recurring one: every check examined the
+  `.ico` SOURCE, which was correct throughout. The question was what the EXE
+  contained, and it went unasked for two rounds. The taskbar/Explorer split
+  wasn't a cache signature at all — it was the two-states pattern again
+  (pywebview sets the window icon at runtime from the bundled `.ico`; Explorer
+  reads the resource compiled into the exe).*
+- **Also fixed:** `e90da7d` → `scripts/build_win.ps1` now clears `$Work\OpenOrder`
+  alongside `$Dist\OpenOrder` (v1.4.2).
+- **Test-verified:** **NO** — the rebuilt exe now measures **7 frames, every one
+  an oval** (ratios 1.27-1.40 against the source's 1.35, vs 0.99 before), so the
+  artifact is provably correct at build 9. Still unverified because an icon is
+  only real once a shell draws it: needs Jonathan seeing an oval in **Explorer**
+  on phoenix at build 9.
 
 ---
 
