@@ -117,6 +117,29 @@ fi
 # and a good install all look identical from outside — so read the version
 # back out of the installed bundle rather than trusting that cp worked.
 echo "  [6/6] Installing to /Applications ..."
+
+# A running OpenOrder is replaced out from under itself by the rm -rf below,
+# so quit it first. Jonathan's standing word (2026-08-09): "if the app is
+# running you can close it. Better than being stuck when I leave my desk."
+#
+# GRACEFUL QUIT ONLY, and narrow by name (rules.md §12 — process-stops are
+# destructive-tier). `quit app` lets any in-flight write to his data finish;
+# a force-kill could truncate a service or the calendar mid-save. If it will
+# not quit, ABORT rather than escalate — never -9 an app holding user data.
+if pgrep -f "/Applications/OpenOrder.app" > /dev/null 2>&1; then
+  echo "        OpenOrder is running — asking it to quit ..."
+  osascript -e 'quit app "OpenOrder"' > /dev/null 2>&1 || true
+  for _ in $(seq 1 10); do
+    pgrep -f "/Applications/OpenOrder.app" > /dev/null 2>&1 || break
+    sleep 1
+  done
+  if pgrep -f "/Applications/OpenOrder.app" > /dev/null 2>&1; then
+    echo "  [X] OpenOrder would not quit. Close it by hand and run this again."
+    exit 1
+  fi
+  echo "        Quit."
+fi
+
 rm -rf "/Applications/OpenOrder.app"
 cp -R "$APP" "/Applications/OpenOrder.app"
 INSTALLED_V="$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "/Applications/OpenOrder.app/Contents/Info.plist" 2>/dev/null)"
