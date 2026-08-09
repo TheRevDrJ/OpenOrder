@@ -99,11 +99,30 @@ grep -rn "OO-0NN" backend/ frontend/src/ scripts/
   reads the resource compiled into the exe).*
 - **Also fixed:** `e90da7d` → `scripts/build_win.ps1` now clears `$Work\OpenOrder`
   alongside `$Dist\OpenOrder` (v1.4.2).
-- **Test-verified:** **NO** — the rebuilt exe now measures **7 frames, every one
-  an oval** (ratios 1.27-1.40 against the source's 1.35, vs 0.99 before), so the
-  artifact is provably correct at build 9. Still unverified because an icon is
-  only real once a shell draws it: needs Jonathan seeing an oval in **Explorer**
-  on phoenix at build 9.
+- **Third round — the defect is fixed; what's left is phoenix's icon cache.**
+  Jonathan at build 9: *"still round. I refreshed."* Rather than theorise a
+  third time, three measurements, each answering a different question:
+  1. **The exe on phoenix is the one I proved correct** — SHA256 identical to
+     the copy measured on the Mac (7 frames, all oval).
+  2. ⭐ **The Windows shell itself resolves an OVAL for that exact path.**
+     `[System.Drawing.Icon]::ExtractAssociatedIcon` on phoenix returned 32x32,
+     opaque **28x22, ratio 1.27** — matching the exe's own 32px frame exactly.
+     **So the file is right AND the icon API is right; only Explorer's rendered
+     view disagrees**, which is the definition of a stale shell cache.
+  3. `ie4uinit.exe -show` and `-ClearIconCache` both left
+     `iconcache_32.db` (2 MB) and `iconcache_48.db` (4 MB) populated.
+  **Done:** the `iconcache*.db` files were deleted (they cleared successfully),
+  and a control copy was placed at a **fresh path** —
+  `c:\claude\icon-check\OpenOrder-v1.4.2-build9.exe` — which has no cache entry,
+  so Explorer must read its icon from the file.
+  ⛔ **Not done, deliberately:** restarting Explorer, which is the remaining
+  standard remedy. Process-stops are destructive-tier (`rules.md` §12) and he
+  didn't ask for one; it's one command whenever he wants it.
+- **Test-verified:** **NO** — proven at two levels (the file, and the shell API's
+  answer for that path), but not yet seen drawn by Explorer. **For Jonathan:**
+  open `c:\claude\icon-check\` — if that copy shows an oval, this is confirmed
+  and the original path is only waiting on Explorer to rebuild its cache
+  (a sign-out/in or `Stop-Process -Name explorer` finishes it).
 
 ---
 
