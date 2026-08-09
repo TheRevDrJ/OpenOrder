@@ -22,8 +22,8 @@ const FOLDERS = [
   },
   {
     key: 'data_dir',
-    label: 'Calendar Folder',
-    hint: 'Your recurring events, one-offs, and notes are kept here.',
+    label: 'Data Folder',
+    hint: 'Your calendar, saved services, theme images, and bulletin template.',
   },
   {
     key: 'hymnal_dir',
@@ -116,7 +116,9 @@ export function SettingsPanel({
       const data = await res.json()
       if (res.ok) {
         setUploadResult(data)
-        setTemplateInfo(data)
+        // Re-read the authoritative state rather than trusting the upload
+        // response to carry every field the panel renders.
+        fetch('/api/template/info').then(r => r.json()).then(setTemplateInfo)
       } else {
         alert(data.detail || 'Upload failed')
       }

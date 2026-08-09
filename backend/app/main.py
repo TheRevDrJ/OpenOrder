@@ -269,8 +269,13 @@ async def upload_template(file: UploadFile):
     with open(dest_template, "wb") as f:
         f.write(content)
 
+    # Same shape as /api/template/info — the UI shows this response directly,
+    # and a missing "exists" here read as "No template found" immediately after
+    # a successful upload.
     return {
         "saved": True,
+        "exists": True,
+        "custom": True,
         "name": file.filename,
         "found": found,
         "missing": missing,
