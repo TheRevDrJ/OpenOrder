@@ -67,7 +67,7 @@ ssh "$PHX" "if (Test-Path '$PHX_DIR') { Remove-Item -Recurse -Force '$PHX_DIR' }
 
 PHX_EXE=$(ssh "$PHX" "if (Test-Path '$PHX_DIR\\OpenOrder.exe') { 'yes' }" | tr -d '\r\n')
 [ "$PHX_EXE" = "yes" ] || fail "unpacked on phoenix but $PHX_DIR\\OpenOrder.exe is not there."
-echo "  unpacked: $PHX_DIR\\OpenOrder.exe"
+printf '  unpacked: %s\\OpenOrder.exe\n' "$PHX_DIR"
 
 # -- leg 2: his Mac ---------------------------------------------------------
 echo "-- Defiant (this Mac) ---------------------------------"
