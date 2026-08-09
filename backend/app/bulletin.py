@@ -414,7 +414,8 @@ def generate_bulletin(order: OrderOfWorship) -> Path:
                             _replace_in_runs(paragraph, placeholder, value)
 
     # Replace theme image
-    theme_path = paths.OUTPUT_DIR / order.themeImageFilename if order.themeImageFilename else None
+    # Theme image is an uploaded INPUT — it lives with the user's data.
+    theme_path = paths.DATA_DIR / order.themeImageFilename if order.themeImageFilename else None
     _replace_theme_image(doc, theme_path)
 
     # Render calendar block (if placeholder exists in template)

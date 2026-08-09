@@ -64,13 +64,15 @@ def hymnal_get(source: str, number: str):
 # --- Services (save/load) ---
 
 def _service_path(service_date: str) -> Path:
-    return paths.OUTPUT_DIR / f"{service_date} - Raw.json"
+    # A saved service is INPUT, not output — it's reloaded and edited week to
+    # week, so it lives with the user's data, not in the downloads folder.
+    return paths.DATA_DIR / f"{service_date} - Raw.json"
 
 
 @app.get("/api/services")
 def list_services():
     """List all saved services."""
-    files = sorted(paths.OUTPUT_DIR.glob("* - Raw.json"), reverse=True)
+    files = sorted(paths.DATA_DIR.glob("* - Raw.json"), reverse=True)
     services = []
     for f in files:
         date_str = f.name.split(" - Raw.json")[0]
@@ -115,7 +117,9 @@ async def upload_theme_image(service_date: str, file: UploadFile):
         ext = '.png'
 
     filename = f"{service_date} - Theme{ext}"
-    dest = paths.OUTPUT_DIR / filename
+    # An uploaded theme image is INPUT — it's read back every time the service
+    # is regenerated, so it belongs with the user's data.
+    dest = paths.DATA_DIR / filename
     with open(dest, "wb") as f:
         f.write(content)
     return {"filename": filename}
@@ -400,10 +404,16 @@ def save_calendar_note(service_date: str, note: dict):
 
 @app.get("/api/download/{filename}")
 def download_file(filename: str):
-    path = paths.OUTPUT_DIR / filename
-    if not path.exists():
-        raise HTTPException(404, "File not found")
-    return FileResponse(path, filename=filename)
+    # Serves both halves: generated documents live in the output folder, while
+    # theme images the UI previews live with the user's data. Reject any path
+    # separator first — the name is used to build a path.
+    if "/" in filename or "\\" in filename or ".." in filename:
+        raise HTTPException(400, "Invalid filename")
+    for folder in (paths.OUTPUT_DIR, paths.DATA_DIR):
+        path = folder / filename
+        if path.exists():
+            return FileResponse(path, filename=filename)
+    raise HTTPException(404, "File not found")
 
 
 # --- Serve frontend in production ---

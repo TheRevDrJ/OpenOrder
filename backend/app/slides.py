@@ -855,7 +855,7 @@ def generate_slides(order: OrderOfWorship, theme_name: str = None) -> Path:
     # Theme image path
     theme_path = None
     if order.themeImageFilename:
-        candidate = paths.OUTPUT_DIR / order.themeImageFilename
+        candidate = paths.DATA_DIR / order.themeImageFilename
         if candidate.exists():
             theme_path = candidate
 
