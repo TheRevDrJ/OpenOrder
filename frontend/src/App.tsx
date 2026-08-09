@@ -528,7 +528,7 @@ function App() {
         )}
         </>}
       </div>
-      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} onSaved={confirmSaved} />
       <Toast toast={toast} onDone={() => setToast(null)} />
     </div>
   )

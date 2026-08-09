@@ -28,6 +28,11 @@ from . import calendar_data
 CALENDAR_OLIVE = RGBColor(0x6B, 0x7A, 0x3D)
 CALENDAR_FONT = "Georgia"
 
+# Blank lines between one week's events and the next week's date header.
+# Raised from 1 to 2 (2026-08-09, Jonathan) — one line didn't separate the
+# weeks clearly enough on the printed page.
+CALENDAR_WEEK_GAP_LINES = 2
+
 # Template path — this is the "theme"
 TEMPLATE_PATH = RESOURCES_DIR / "bulletin" / "Template - Bulletin.docx"
 
@@ -240,14 +245,18 @@ def _render_calendar_block(doc, anchor_paragraph, service_date_str: str):
         d = date.fromisoformat(date_str)
         day_name, date_label, ordinal_suffix, _ = _format_event_date(d)
 
-        # Spacer paragraph between weeks (so left border doesn't bleed into space-before)
+        # Blank paragraphs between weeks. Real empty paragraphs rather than
+        # space_before, because the date header carries a left border accent
+        # and Word bleeds that border through paragraph spacing.
         if i > 0:
-            spacer = doc.add_paragraph()
-            spacer.paragraph_format.space_before = Pt(0)
-            spacer.paragraph_format.space_after = Pt(0)
-            sp_run = spacer.add_run("")
-            sp_run.font.size = Pt(8)
-            new_paragraphs.append(spacer)
+            for _ in range(CALENDAR_WEEK_GAP_LINES):
+                spacer = doc.add_paragraph()
+                spacer.paragraph_format.space_before = Pt(0)
+                spacer.paragraph_format.space_after = Pt(0)
+                sp_run = spacer.add_run("")
+                sp_run.font.size = Pt(8)
+                new_paragraphs.append(spacer)
+                estimated_height += 0.11
 
         # Date header — uses left border accent instead of bottom line
         header_p = doc.add_paragraph()

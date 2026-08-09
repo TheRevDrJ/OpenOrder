@@ -30,7 +30,17 @@ const FOLDERS = [
   },
 ] as const
 
-export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function SettingsPanel({
+  open,
+  onClose,
+  onSaved,
+}: {
+  open: boolean
+  onClose: () => void
+  /** Report a file written to disk, so the app can confirm it the same way it
+   *  confirms a generated bulletin. */
+  onSaved?: (kind: string, data: { filename: string; folder?: string }) => void
+}) {
   const [dirs, setDirs] = useState<Record<string, string>>({})
   const [templateInfo, setTemplateInfo] = useState<TemplateInfo | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -73,6 +83,20 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
         const err = await res.json()
         alert(err.detail || 'Failed to set folder')
       }
+    }
+  }
+
+  async function handleTemplateDownload() {
+    try {
+      const res = await fetch('/api/template/export', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        onSaved?.('Template', data)
+      } else {
+        alert(data.detail || 'Could not save the template')
+      }
+    } catch {
+      alert('Could not reach server')
     }
   }
 
@@ -186,9 +210,18 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
                 )}
               </div>
             )}
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
                 {uploading ? 'Uploading...' : 'Upload Template'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleTemplateDownload}
+                disabled={!templateInfo?.exists}
+                title={templateInfo?.exists ? 'Save a copy to your output folder' : 'No template installed yet'}
+              >
+                Download Template
               </Button>
               <input ref={fileRef} type="file" accept=".docx" className="hidden" onChange={handleTemplateUpload} />
               <span className="text-xs text-muted-foreground">.docx only</span>

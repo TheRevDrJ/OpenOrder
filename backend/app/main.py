@@ -210,6 +210,33 @@ def template_info():
     }
 
 
+@app.post("/api/template/export")
+def export_template():
+    """
+    Put a copy of the current bulletin template in the output folder.
+
+    Deliberately a copy-to-output rather than a browser download: the desktop
+    app has no download bar, so a FileResponse would land nowhere the user can
+    see. This behaves identically in the app and in a browser, and the UI can
+    say which folder it went to.
+    """
+    import shutil
+    from .bulletin import TEMPLATE_PATH
+
+    if not TEMPLATE_PATH.exists():
+        raise HTTPException(404, "No bulletin template is installed yet")
+
+    paths.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    dest = paths.OUTPUT_DIR / TEMPLATE_PATH.name
+    try:
+        shutil.copy2(TEMPLATE_PATH, dest)
+    except PermissionError:
+        raise HTTPException(
+            409, f"{dest.name} is open in another program (probably Word). Close it and try again."
+        )
+    return {"filename": dest.name, "folder": str(dest.parent)}
+
+
 @app.post("/api/template/upload")
 async def upload_template(file: UploadFile):
     """Upload and validate a new bulletin template."""
