@@ -2,6 +2,16 @@
 
 What has changed in each release of OpenOrder, newest first.
 
+## 1.4.1 — 2026-08-09 · The Windows icon is an oval again, at every size
+
+*Matching what the macOS icon got right, in the way Windows expects it.*
+
+- **Fixed:** the Windows application icon was the OpenOrder mark squeezed into a
+  square frame, so it appeared as a circle rather than an oval. It now keeps its
+  proper shape, on the transparent background Windows expects.
+- **Fixed:** the icon carried only one 256-pixel size, leaving Windows to shrink
+  it for the taskbar and Explorer. It now ships every standard size.
+
 ## 1.4.0 — 2026-08-09 · Windows builds, produced and tested every release
 
 *OpenOrder is now built for Windows and macOS together, from the same source, as

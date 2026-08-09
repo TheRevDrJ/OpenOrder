@@ -58,21 +58,31 @@ grep -rn "OO-0NN" backend/ frontend/src/ scripts/
 
 # Active
 
-## OO-002 — The Windows .ico is probably the bare logo, like the macOS icon was
+## OO-002 — The Windows icon renders as a circle instead of an oval
 - **Category:** BUILD
-- **Severity:** LOW  **Status:** OPEN  **Reported:** 2026-08-09 (Bob)
-- **Seen in:** not yet observed — suspected from source, now testable on phoenix
-- **Report:** `resources/images/openorder.ico` was generated from the same
-  `openorder-logo.svg` that produced the broken macOS icon: a bare oval on
-  transparency with no icon canvas. OO-001 proved that shape renders badly as an
-  app icon. Expected: OpenOrder.exe shows a normal Windows app icon. Actual:
-  unknown — nobody has looked at it on a Windows desktop yet.
-- **History:** Logged rather than guessed at while there was no Windows build to
-  check. There is one now (`c:\claude\OpenOrder-win\` on phoenix), so this is
-  answerable by looking. If it *is* wrong, the fix is the macOS one applied to
-  Windows: rebuild the `.ico` from `openorder-appicon-mac.svg`'s artwork.
-- **Solution:** —
-- **Test-verified:** NO
+- **Severity:** LOW  **Status:** FIXED (unverified)  **Reported:** 2026-08-09 (Bob, confirmed by Jonathan)
+- **Seen in:** v1.4.0 build 7 · packaged app · Windows (phoenix)
+- **Report:** Suspected from source, then confirmed by Jonathan on phoenix:
+  *"open order's icon on windows is what we had it set as before. It is round
+  instead of oval though."* Expected: the OpenOrder mark, an oval. Actual: the
+  420x310 oval squeezed into a square frame, so it renders as a circle.
+- **History:** Shares OO-001's first cause (product-logo art used directly as an
+  app icon) but **not its fix** — Jonathan's ruling: *"Transparent background is
+  fine on windows. It's the norm."* So the macOS answer (an opaque charcoal
+  squircle) is explicitly wrong here; Windows keeps the transparent surround and
+  only needs the aspect ratio respected.
+  A second defect found while fixing it: the old `.ico` carried **one 256px
+  frame**, leaving Windows to downscale for the taskbar and Explorer itself.
+- **Solution:** new `resources/images/openorder-appicon-win.svg` — the mark at
+  its natural aspect on a square transparent canvas, padded above and below
+  instead of stretched. `openorder.ico` rebuilt from it with a full size ladder
+  (16/24/32/48/64/128/256). Alpha rebuilt from the ellipse geometry rather than
+  trusted from the rasterizer, since qlmanage flattens SVG alpha onto white
+  (the OO-001 lesson).
+- **Test-verified:** **NO** — measured locally (opaque extent 230x170, ratio
+  **1.35**, matching the logo; a circle would be 1.00; corners alpha 0), but the
+  icon only exists in the packaged app, so this needs Jonathan looking at
+  `OpenOrder.exe` on phoenix at build 8 or later.
 
 ---
 
