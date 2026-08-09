@@ -1,0 +1,148 @@
+# OpenOrder — bugs and feature requests
+
+One tracker for the project. **Active** is outstanding work and nothing else;
+everything decided lives in **Closed**.
+
+## How it works
+
+**The one rule this file exists for:** the Active list answers *"is anything
+left?"* **by being looked at**, never by being read and judged. If a status
+report ever has to say "there are these two, but they're not really bugs,"
+that's a filing error — mark them and move them down.
+
+**Only these four may appear in Active:**
+`OPEN` · `IN PROGRESS` · `FIXED (unverified)` · `REOPENED`
+
+Every other status moves the whole entry to Closed immediately: `VERIFIED`,
+`WONTFIX`, `BY DESIGN`, `NOT A BUG`, `CANNOT REPRODUCE`.
+
+**The cardinal rule — FIXED ≠ VERIFIED.** Code landing is `FIXED (unverified)`.
+It is not done until something proves it: preferably a test that fails before
+the fix and passes after. Anything that only exists in the packaged app — the
+native window, the icon, install behaviour — **cannot be verified from the dev
+server.** It needs a build, Jonathan confirming in the installed app, and the
+build number written into the entry. *"It should work now" is not verification,
+and neither is reading the diff.*
+
+**Severity is the ship gate:** `CRITICAL` (blocks ship) · `HIGH` (major feature
+broken, no workaround) · `MEDIUM` (workaround exists) · `LOW` (cosmetic).
+⛔ **No CRITICAL or HIGH may be OPEN / IN PROGRESS / REOPENED when we ship.**
+
+**Categories** (one per entry, filed under where the *fix* lands):
+`UI` · `OUTPUT` · `DATA` · `BUILD`
+
+**Feature requests** use `FR-NNN` in the same file. `OPEN` / `IN PROGRESS` /
+`BUILT (unverified)` are live work; `DONE` / `UNCERTAIN` / `DECLINED` sit below
+the line. A feature is not DONE until he has actually used it.
+
+**IDs are monotonic and never reused.** Grep before claiming one — the tracker
+*and* the source, because ids get claimed in code comments too:
+```
+grep -o "OO-[0-9][0-9][0-9]" BUGS.md | sort -u | tail
+grep -rn "OO-0NN" backend/ frontend/src/ scripts/
+```
+
+**Entry shape:**
+```
+## <ID> — <title>
+- **Category:** …
+- **Severity:** …  **Status:** …  **Reported:** YYYY-MM-DD (by whom)
+- **Seen in:** <version/build · dev vs packaged · OS>
+- **Report:** repro · expected · actual
+- **History:** <what's been tried, why it's still here>
+- **Solution:** <commits / what changed> — or "—" while open
+- **Test-verified:** <how proven · build # · by whom> — or "NO" while open
+```
+
+---
+
+# Active
+
+## OO-002 — The Windows .ico is probably the bare logo, like the macOS icon was
+- **Category:** BUILD
+- **Severity:** LOW  **Status:** OPEN  **Reported:** 2026-08-09 (Bob)
+- **Seen in:** not yet observed — suspected from source, now testable on phoenix
+- **Report:** `resources/images/openorder.ico` was generated from the same
+  `openorder-logo.svg` that produced the broken macOS icon: a bare oval on
+  transparency with no icon canvas. OO-001 proved that shape renders badly as an
+  app icon. Expected: OpenOrder.exe shows a normal Windows app icon. Actual:
+  unknown — nobody has looked at it on a Windows desktop yet.
+- **History:** Logged rather than guessed at while there was no Windows build to
+  check. There is one now (`c:\claude\OpenOrder-win\` on phoenix), so this is
+  answerable by looking. If it *is* wrong, the fix is the macOS one applied to
+  Windows: rebuild the `.ico` from `openorder-appicon-mac.svg`'s artwork.
+- **Solution:** —
+- **Test-verified:** NO
+
+---
+
+# Feature requests
+
+*(none open)*
+
+---
+
+# Closed
+
+## FR-001 — Build and test OpenOrder on Windows
+- **Category:** BUILD
+- **Severity:** —  **Status:** DONE  **Reported:** 2026-08-09 (Jonathan)
+- **Seen in:** v1.4.0 build 7
+- **Request:** *"I want to start building windows. We build on Zora and copy to
+  phoenix for testing. Let's start doing the same here."* Follow FirstLight's
+  pipeline shape. Later ruling on scope: *"Both every time"* — mac and Windows
+  build together on every change, one event, one build number.
+- **History:** Stood up end to end on 2026-08-09: bare repo `d:\claude\OpenOrder.git`
+  on zora with a working clone, its own Python 3.11 venv and node modules;
+  `scripts/build_win.ps1` (pure ASCII) reads the event's build number and never
+  bumps it; `scripts/build_win_remote.sh` drives zora with a narrow clean, a HEAD
+  match check, the counter scp'd strictly after the pull, full logs to disk and a
+  fail-closed receipt check; `scripts/fanout_win.sh` sends the artifact to phoenix
+  and back to the Mac with SHA256 verified on every copy; `scripts/build_all.sh`
+  runs the whole joint event as one command.
+  Two deliberate divergences from FirstLight: the artifact is a PyInstaller onedir
+  *folder*, so it travels as one zip and one hash proves the whole thing arrived;
+  and the hymnal is **not** bundled — it's copyrighted and gitignored, so the app
+  reaches it through the `hymnal_dir` setting instead.
+- **Solution:** `22b459d` (the pipeline: `build_win.ps1`, `build_win_remote.sh`,
+  `fanout_win.sh`), `26bd6e7` (`build_all.sh` — the joint event as one command),
+  `82b82a9` (printf fix for the summary path); machines table and ritual in
+  `rules_project.md`.
+- **Test-verified:** **YES** — joint build 7 produced mac `1.4.0 (7)` and windows
+  `v1.4.0 build 7` from one source state, SHA256 identical across zora, phoenix and
+  the Mac; phoenix's exe read back at 08:44:00. Jonathan ran it there and confirmed:
+  *"windows confirmed. All good."* (2026-08-09, build 7)
+
+## OO-001 — The app icon was wrong: an oversized circle in the Dock, and it changed on launch
+- **Category:** BUILD
+- **Severity:** LOW  **Status:** VERIFIED  **Reported:** 2026-08-09 (Jonathan)
+- **Seen in:** v1.1.0 build 1 through v1.2.0 build 2 · packaged app only · macOS
+- **Report:** *"the icon for the build while running is right. The icon as it sits
+  in the dock is wrong… in the dock it's larger than the rest and round not like
+  the curved corner icons of everything else."* Expected: a normal macOS app icon —
+  a rounded square, sized like its neighbours. Actual: a bare circle, unpadded,
+  visually larger than every other Dock icon; and after the first fix, correct in
+  the Dock but reverting to the old circle the moment the app launched.
+- **History:** Two distinct causes behind one symptom, which is why the first fix
+  looked complete and wasn't.
+  1. **The artwork had no icon canvas.** `openorder.icns` was built from the
+     *product logo* — a 420x310 canvas holding a bare oval on transparency. Squeezed
+     into a square icns that gives macOS nothing to draw, so the Dock rendered the
+     ellipse itself. Compounded by the rasterizer: `qlmanage` flattens SVG alpha onto
+     **white**, which is where the white background came from.
+  2. **The running app overrode the bundle icon.** With the artwork fixed, Jonathan
+     reported *"it works, but when running it's still this."* `webview.start(icon=…)`
+     was being handed `openorder.ico` — the *Windows* icon, same stale art — so macOS
+     used the correct bundle icon until launch and the wrong one after.
+  The platform behaviour behind both (a runtime icon API is not the bundle icon;
+  qlmanage flattens alpha) belongs in `..\bob\build_rules.md`, where it was written
+  up so the next project doesn't rediscover it.
+- **Solution:** `dac6d0e` (v1.2.0) — new `resources/images/openorder-appicon-mac.svg`
+  on Apple's grid (1024 artboard, 824 squircle at radius 185, dark charcoal, mark
+  centred), with alpha rebuilt from that geometry rather than trusted from the
+  renderer. `22e50fa` (v1.2.1) — macOS passes **no** runtime icon; the bundle's
+  `.icns` stands for both states. Windows/Linux keep the `.ico`.
+- **Test-verified:** **YES** — icon pixels checked in the *installed* bundle (corner
+  alpha 0, charcoal canvas) at build 2; Jonathan confirmed the Dock icon at build 2
+  (*"icon looks great in the dock"*) and the running-app icon at build 3
+  (*"Yep. Perfect."*). (2026-08-09, builds 2 and 3)
