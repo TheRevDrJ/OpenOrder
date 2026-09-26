@@ -1,0 +1,58 @@
+<!--
+  OpenOrder - Windows app icon.
+
+  DIFFERENT FROM THE macOS ONE ON PURPOSE. macOS wants an opaque rounded
+  square (see openorder-appicon-mac.svg); Windows norm is a transparent
+  background with the mark floating on it, which is what this is.
+
+  What was wrong before: openorder.ico was the 420x310 product logo squeezed
+  into a square frame, so the OVAL rendered as a CIRCLE. Here the mark keeps
+  its own aspect ratio and the square canvas is padded above and below - the
+  shape stays an oval, and the padding is transparent.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="blue-grad" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0%" stop-color="#4A90D9"/>
+      <stop offset="100%" stop-color="#1A4A7A"/>
+    </linearGradient>
+    <linearGradient id="orange-grad" x1="0.7" y1="0" x2="0.3" y2="1">
+      <stop offset="0%" stop-color="#F5A623"/>
+      <stop offset="100%" stop-color="#D4792A"/>
+    </linearGradient>
+    <clipPath id="left-half">
+      <rect x="0" y="0" width="210" height="310"/>
+    </clipPath>
+    <clipPath id="right-half">
+      <rect x="210" y="0" width="210" height="310"/>
+    </clipPath>
+    <clipPath id="oval-clip">
+      <ellipse cx="210" cy="155" rx="200" ry="148"/>
+    </clipPath>
+  </defs>
+
+  <!-- The mark at its NATURAL aspect ratio, centered on the square canvas.
+       scale 2.2919 = (1024 * 0.94) / 420, so it spans 94% of the width. -->
+  <g transform="translate(30.7, 156.75) scale(2.2919)">
+    <g clip-path="url(#oval-clip)">
+      <g clip-path="url(#left-half)">
+        <rect x="0" y="0" width="420" height="310" fill="url(#blue-grad)"/>
+      </g>
+      <g clip-path="url(#right-half)">
+        <rect x="0" y="0" width="420" height="310" fill="url(#orange-grad)"/>
+      </g>
+      <line x1="210" y1="7" x2="210" y2="303" stroke="white" stroke-width="6"/>
+      <rect x="101" y="72" width="28" height="166" rx="3" fill="white"/>
+      <rect x="58" y="115" width="115" height="28" rx="3" fill="white"/>
+      <circle cx="248" cy="104" r="7" fill="white" opacity="1"/>
+      <rect x="264" y="97" width="95" height="14" rx="7" fill="white" opacity="1"/>
+      <circle cx="248" cy="144" r="7" fill="white" opacity="0.82"/>
+      <rect x="264" y="137" width="74" height="14" rx="7" fill="white" opacity="0.82"/>
+      <circle cx="248" cy="184" r="7" fill="white" opacity="0.62"/>
+      <rect x="264" y="177" width="84" height="14" rx="7" fill="white" opacity="0.62"/>
+      <circle cx="248" cy="224" r="7" fill="white" opacity="0.38"/>
+      <rect x="264" y="217" width="60" height="14" rx="7" fill="white" opacity="0.38"/>
+    </g>
+    <ellipse cx="210" cy="155" rx="200" ry="148" fill="none" stroke="white" stroke-width="4"/>
+  </g>
+</svg>

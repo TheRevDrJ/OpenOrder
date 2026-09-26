@@ -1,0 +1,548 @@
+"""
+Generate a Word bulletin (.docx) from an OrderOfWorship by replacing
+placeholders in a template document.
+
+The template IS the theme — each church has their own .docx template
+with their formatting, spacing, fonts, and layout. This code just
+swaps the placeholders with real content and replaces the theme image.
+"""
+
+import copy
+import io
+import re
+from datetime import date, timedelta
+from pathlib import Path
+
+from docx import Document
+from docx.shared import Inches, Pt, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
+
+from .models import OrderOfWorship
+from . import paths
+from .paths import RESOURCES_DIR
+from . import calendar_data
+
+# The calendar block's accent — headers, times, the ❦ divider, the note label,
+# and the two paragraph borders.
+#
+# ⛔⛔ IT IS THE CHURCH'S, NOT A CONSTANT. This was a hardcoded olive, which is one
+# congregation's colour; the calendar is drawn entirely by us rather than coming
+# from the template, so nothing else was going to correct it and a second church
+# got the first church's accent on its own letterhead.
+# @decision:gold 2026-09-24
+#
+# ⚠ IT LIVES IN TWO FORMS AND BOTH MUST MOVE TOGETHER: an RGBColor for runs, and a
+# bare "RRGGBB" string for the border XML, which takes no colour object.
+_DEFAULT_ACCENT = RGBColor(0x6B, 0x7A, 0x3D)
+_accent = _DEFAULT_ACCENT
+CALENDAR_FONT = "Georgia"
+
+
+def _load_accent(church: dict | None = None):
+    """Point the calendar's accent at this church's title colour.
+
+    ⛔⛔ THERE ARE TWO DIFFERENT `RGBColor` CLASSES IN THIS APP AND THEY ARE NOT
+    INTERCHANGEABLE. A church theme is resolved for python-PPTX
+    (`pptx.dml.color.RGBColor`, see churches.py); this module is python-DOCX
+    (`docx.shared.RGBColor`). They share a name, share a `str()` of "RRGGBB", and
+    fail `isinstance` against each other — so a type check here silently fell back
+    to the default and every bulletin kept printing the old hardcoded olive while
+    looking entirely plausible.
+    ⭐ THE HEX STRING IS THE ONLY THING BOTH LIBRARIES AGREE ON. Convert through it.
+
+    ⛔ Falls back rather than raising — a theme problem must not cost a bulletin.
+    """
+    global _accent
+    raw = ((church or {}).get("theme") or {}).get("title_color")
+    try:
+        _accent = RGBColor.from_string(str(raw).lstrip("#").strip().upper())
+    except (ValueError, AttributeError, TypeError):
+        _accent = _DEFAULT_ACCENT
+
+
+def _accent_hex() -> str:
+    """The accent as the "RRGGBB" the border XML wants."""
+    return str(_accent)
+
+# Blank lines between one week's events and the next week's date header.
+# Raised from 1 to 2 (2026-08-09, Jonathan) — one line didn't separate the
+# weeks clearly enough on the printed page.
+CALENDAR_WEEK_GAP_LINES = 2
+
+# The bulletin template — this is the "theme".
+#
+# It lives in one of two places, resolved on every use (never snapshotted at
+# import — the data folder is user-configurable and can change while running):
+#
+#   1. the user's own, uploaded through Settings, kept with their data
+#   2. the one that ships with the app, used until they upload one
+#
+# An uploaded template USED TO overwrite the shipped copy inside the app's own
+# resources, which meant the next install silently replaced the user's template
+# with the default — and in development it dirtied the tracked default in git.
+# Keeping the user's copy in their data folder fixes both, and leaves the
+# shipped default able to improve in a later release for anyone who never
+# uploaded one.
+
+TEMPLATE_FILENAME = "Template - Bulletin.docx"
+
+
+def default_template_path() -> Path:
+    """The template that ships with the app."""
+    return RESOURCES_DIR / "bulletin" / TEMPLATE_FILENAME
+
+
+def user_template_path() -> Path:
+    """Where an uploaded template is stored — with the user's data, so that it
+    survives reinstalling or rebuilding the app."""
+    return paths.DATA_DIR / TEMPLATE_FILENAME
+
+
+def _slug(church: dict | None) -> str:
+    """`"<id> - "` for a real church, `""` for the neutral default."""
+    cid = (church or {}).get("id")
+    return f"{cid} - " if cid and cid != "default" else ""
+
+
+def template_path(church: dict | None = None, communion: bool = False) -> Path:
+    """The template actually in use, for this church.
+
+    ⭐ THE TEMPLATE IS WHERE A CHURCH'S IDENTITY LIVES — its name, address, service
+    time and letterhead are typed into the document, not rendered from config. So a
+    second congregation is a second template, and choosing a church is mostly
+    choosing which file this returns.
+
+    Order: the church's own template (inside its folder), then the shared uploaded
+    one, then the template that ships with the app. ⛔ Falls through rather than
+    raising — a missing file must still produce a bulletin on a Sunday morning.
+    """
+    if church:
+        from .churches import template_for
+        own = template_for(church, communion)
+        if own and own.is_file():
+            return own
+    user = user_template_path()
+    return user if user.exists() else default_template_path()
+
+
+def _ordinal_date(d: date) -> str:
+    """Format a date like 'April 5th, 2026' with ordinal suffix."""
+    day = d.day
+    if 11 <= day <= 13:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+    return f"{d.strftime('%B')} {day}{suffix}, {d.year}"
+
+
+def _liturgical_prayer_label(order: OrderOfWorship) -> str:
+    """Build the liturgical prayer label from the selected prayer."""
+    if not order.liturgicalPrayer:
+        return 'THE LORD\u2019S PRAYER'
+
+    num = order.liturgicalPrayer.number
+    title = order.liturgicalPrayer.title
+
+    # Shorten the common Lord's Prayer variants
+    if num in ('894', '895', '896'):
+        return "THE LORD\u2019S PRAYER"
+
+    return title.upper() if title else 'THE LORD\u2019S PRAYER'
+
+
+def _replace_in_runs(paragraph, placeholder: str, replacement: str):
+    """
+    Replace a placeholder across paragraph runs, preserving formatting.
+
+    Word splits text across multiple runs unpredictably. This finds the
+    placeholder across run boundaries and replaces it while keeping the
+    formatting of the first run that contains part of the placeholder.
+    """
+    # First, try simple per-run replacement
+    for run in paragraph.runs:
+        if placeholder in run.text:
+            run.text = run.text.replace(placeholder, replacement)
+            return True
+
+    # If not found in a single run, search across runs
+    full_text = ''.join(run.text for run in paragraph.runs)
+    if placeholder not in full_text:
+        return False
+
+    # Find where the placeholder starts and ends across runs
+    idx = full_text.index(placeholder)
+    end_idx = idx + len(placeholder)
+
+    # Rebuild runs: before placeholder, replacement, after placeholder
+    char_pos = 0
+    new_runs_text = []
+    replacement_inserted = False
+
+    for run in paragraph.runs:
+        run_start = char_pos
+        run_end = char_pos + len(run.text)
+
+        if run_end <= idx:
+            # Entirely before placeholder — keep as is
+            new_runs_text.append(None)
+        elif run_start >= end_idx:
+            # Entirely after placeholder — keep as is
+            new_runs_text.append(None)
+        else:
+            # This run overlaps with the placeholder
+            before = run.text[:max(0, idx - run_start)]
+            after = run.text[max(0, end_idx - run_start):]
+
+            if not replacement_inserted:
+                new_runs_text.append(before + replacement + after)
+                replacement_inserted = True
+            else:
+                # Subsequent runs that were part of the placeholder
+                new_runs_text.append(after if after else '')
+
+        char_pos = run_end
+
+    # Apply the new text to runs
+    for run, new_text in zip(paragraph.runs, new_runs_text):
+        if new_text is not None:
+            run.text = new_text
+
+    return True
+
+
+def _replace_hero_image(doc: Document, image_path: Path):
+    """Replace the first inline image in the document with the theme image."""
+    if not image_path or not image_path.exists():
+        return
+
+    # Convert unsupported formats to PNG
+    supported = {'.bmp', '.gif', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.wmf'}
+    if image_path.suffix.lower() not in supported:
+        try:
+            from PIL import Image
+            png_path = image_path.with_suffix('.png')
+            if not png_path.exists():
+                img = Image.open(image_path)
+                img.save(png_path, 'PNG')
+            image_path = png_path
+        except Exception:
+            return
+
+    # Find the first inline shape (the theme image placeholder)
+    for paragraph in doc.paragraphs:
+        for run in paragraph.runs:
+            if run._element.findall('.//{http://schemas.openxmlformats.org/drawingml/2006/main}blip'):
+                # Found an inline image — get its relationship ID
+                blips = run._element.findall(
+                    './/{http://schemas.openxmlformats.org/drawingml/2006/main}blip'
+                )
+                if blips:
+                    blip = blips[0]
+                    ns = '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}'
+                    rId = blip.get(f'{ns}embed')
+                    if rId:
+                        # Replace the image data in the relationship
+                        part = doc.part
+                        image_part = part.related_parts[rId]
+                        with open(image_path, 'rb') as f:
+                            image_part._blob = f.read()
+                        return
+
+
+def _format_event_date(d: date) -> tuple[str, str, str, str]:
+    """Return (DAYNAME, 'Month Day', suffix, '') split for superscript rendering."""
+    day = d.day
+    if 11 <= day <= 13:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+    return d.strftime("%A").upper(), f"{d.strftime('%B')} {day}", suffix, ""
+
+
+def _add_accent_left_border(paragraph):
+    """Add a thick left border in the church's accent colour."""
+    p_pr = paragraph._p.get_or_add_pPr()
+    p_bdr = OxmlElement('w:pBdr')
+    left = OxmlElement('w:left')
+    left.set(qn('w:val'), 'single')
+    left.set(qn('w:sz'), '24')  # 3pt thick
+    left.set(qn('w:space'), '8')
+    left.set(qn('w:color'), _accent_hex())
+    p_bdr.append(left)
+    p_pr.append(p_bdr)
+
+
+def _add_accent_bottom_border(paragraph):
+    """Add a bottom border in the church's accent colour (horizontal divider)."""
+    p_pr = paragraph._p.get_or_add_pPr()
+    p_bdr = OxmlElement('w:pBdr')
+    bottom = OxmlElement('w:bottom')
+    bottom.set(qn('w:val'), 'single')
+    bottom.set(qn('w:sz'), '12')  # 1.5pt thick (lighter than vertical bar)
+    bottom.set(qn('w:space'), '1')
+    bottom.set(qn('w:color'), _accent_hex())
+    p_bdr.append(bottom)
+    p_pr.append(p_bdr)
+
+
+def _read_anchor_font(paragraph) -> tuple[str, float]:
+    """Read font name and size from the {{CALENDAR_BLOCK}} placeholder."""
+    font_name = CALENDAR_FONT
+    font_size = 11.0
+    for run in paragraph.runs:
+        if run.font.name:
+            font_name = run.font.name
+        if run.font.size:
+            font_size = run.font.size.pt
+            break
+    return font_name, font_size
+
+
+def _render_calendar_block(doc, anchor_paragraph, service_date_str: str,
+                           church_id: str | None = None):
+    """
+    Replace the {{CALENDAR_BLOCK}} paragraph with a styled calendar.
+
+    Font name/size is inherited from the placeholder paragraph.
+    Day headers are +2pt over the base.
+    Olive accent for headers and times.
+    """
+    cal = calendar_data.get_calendar_for_service(service_date_str, church_id)
+    events = cal.get("events", [])
+
+    # Read font from anchor paragraph
+    base_font, base_size = _read_anchor_font(anchor_paragraph)
+    header_size = base_size + 2
+
+    # Group events by date
+    by_date: dict[str, list] = {}
+    for e in events:
+        by_date.setdefault(e["date"], []).append(e)
+
+    # Get the parent and index for inserting after the anchor
+    p_element = anchor_paragraph._p
+    parent = p_element.getparent()
+    anchor_index = list(parent).index(p_element)
+
+    new_paragraphs = []
+
+    # Track approximate space usage for overflow warning
+    # Page 4 has ~7" of vertical space; each event is ~0.25", date header ~0.4"
+    estimated_height = 0.0
+
+    for i, (date_str, day_events) in enumerate(sorted(by_date.items())):
+        d = date.fromisoformat(date_str)
+        day_name, date_label, ordinal_suffix, _ = _format_event_date(d)
+
+        # Blank paragraphs between weeks. Real empty paragraphs rather than
+        # space_before, because the date header carries a left border accent
+        # and Word bleeds that border through paragraph spacing.
+        if i > 0:
+            for _ in range(CALENDAR_WEEK_GAP_LINES):
+                spacer = doc.add_paragraph()
+                spacer.paragraph_format.space_before = Pt(0)
+                spacer.paragraph_format.space_after = Pt(0)
+                sp_run = spacer.add_run("")
+                sp_run.font.size = Pt(8)
+                new_paragraphs.append(spacer)
+                estimated_height += 0.11
+
+        # Date header — uses left border accent instead of bottom line
+        header_p = doc.add_paragraph()
+        header_p.paragraph_format.space_before = Pt(0)
+        header_p.paragraph_format.space_after = Pt(4)
+        header_p.paragraph_format.left_indent = Inches(0.15)
+
+        r1 = header_p.add_run(day_name)
+        r1.font.name = base_font
+        r1.font.size = Pt(header_size)
+        r1.font.bold = True
+        r1.font.color.rgb = _accent
+
+        r2 = header_p.add_run(f"  ·  {date_label}")
+        r2.font.name = base_font
+        r2.font.size = Pt(header_size)
+        r2.font.bold = True
+        r2.font.color.rgb = _accent
+
+        r3 = header_p.add_run(ordinal_suffix)
+        r3.font.name = base_font
+        r3.font.size = Pt(header_size)
+        r3.font.bold = True
+        r3.font.color.rgb = _accent
+        r3.font.superscript = True
+
+        _add_accent_left_border(header_p)
+        new_paragraphs.append(header_p)
+        estimated_height += 0.45
+
+        # Events for this date
+        # Tab stops: time | title | location aligned at fixed columns
+        for event in day_events:
+            ev_p = doc.add_paragraph()
+            ev_p.paragraph_format.space_before = Pt(2)
+            ev_p.paragraph_format.space_after = Pt(0)
+            ev_p.paragraph_format.left_indent = Inches(0.4)
+
+            # Time at 0.4", title at 1.5", location at 3.6"
+            tab_stops = ev_p.paragraph_format.tab_stops
+            tab_stops.add_tab_stop(Inches(1.5))
+            tab_stops.add_tab_stop(Inches(3.6))
+
+            time_run = ev_p.add_run(event.get("time", ""))
+            time_run.font.name = base_font
+            time_run.font.size = Pt(base_size)
+            time_run.font.bold = True
+            time_run.font.color.rgb = _accent
+
+            title_run = ev_p.add_run(f"\t{event.get('title', '')}")
+            title_run.font.name = base_font
+            title_run.font.size = Pt(base_size)
+
+            location = event.get("location", "")
+            if location:
+                loc_run = ev_p.add_run(f"\t{location}")
+                loc_run.font.name = base_font
+                loc_run.font.size = Pt(max(base_size - 1, 8))
+                loc_run.font.italic = True
+                loc_run.font.color.rgb = RGBColor(0x80, 0x80, 0x80)
+
+            new_paragraphs.append(ev_p)
+            estimated_height += 0.25
+
+    # Add the optional note if enabled
+    note = calendar_data.get_note(service_date_str, church_id)
+    if note.get("enabled") and note.get("text", "").strip():
+        # Ornate divider in the church accent: ──────── ❦ ────────
+        divider_p = doc.add_paragraph()
+        divider_p.paragraph_format.space_before = Pt(18)
+        divider_p.paragraph_format.space_after = Pt(0)
+        divider_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+        ornament_text = "────────  ❦  ────────"
+        div_run = divider_p.add_run(ornament_text)
+        div_run.font.name = base_font
+        div_run.font.size = Pt(base_size + 1)
+        div_run.font.color.rgb = _accent
+
+        new_paragraphs.append(divider_p)
+
+        note_p = doc.add_paragraph()
+        note_p.paragraph_format.space_before = Pt(10)
+        note_p.paragraph_format.space_after = Pt(0)
+
+        # Apply justification
+        align = note.get("align", "left")
+        if align == "center":
+            note_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        elif align == "right":
+            note_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        else:
+            note_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+        label_run = note_p.add_run("Note: ")
+        label_run.font.name = base_font
+        label_run.font.size = Pt(max(base_size - 1, 8))
+        label_run.font.bold = True
+        label_run.font.color.rgb = _accent
+
+        text_run = note_p.add_run(note["text"])
+        text_run.font.name = base_font
+        text_run.font.size = Pt(max(base_size - 1, 8))
+        text_run.font.bold = bool(note.get("bold"))
+        text_run.font.italic = bool(note.get("italic"))
+
+        new_paragraphs.append(note_p)
+
+    # Move new paragraphs from end of doc to anchor position, then remove anchor
+    for offset, p in enumerate(new_paragraphs):
+        parent.insert(anchor_index + offset, p._p)
+
+    # Remove the anchor (placeholder) paragraph
+    parent.remove(p_element)
+
+    return {
+        "events": len(events),
+        "dates": len(by_date),
+        "estimated_height_in": estimated_height,
+        "overflow_warning": estimated_height > 7.0,
+    }
+
+
+def generate_bulletin(order: OrderOfWorship, church: dict | None = None) -> Path:
+    """Generate a Word bulletin by replacing placeholders in the template."""
+
+    # ⛔ BEFORE ANYTHING IS DRAWN: the calendar block is generated by us, so it
+    # takes its colour from here rather than from the template.
+    _load_accent(church)
+    # ⭐ The Table has its own liturgy on the page, so a communion Sunday is a
+    # different template rather than the same one with a slide added.
+    doc = Document(str(template_path(church, bool(order.communion))))
+    service_date = date.fromisoformat(order.date)
+
+    # Build the replacement map
+    replacements = {
+        '{{DATE}}': _ordinal_date(service_date),
+        '{{SERVICE_TITLE}}': order.serviceTitle or '',
+        '{{OPENING_HYMN_TITLE}}': order.praiseHymn1.title if order.praiseHymn1 else 'TBD',
+        '{{OFFERTORY_HYMN_TITLE}}': order.praiseHymn2.title if order.praiseHymn2 else 'TBD',
+        '{{OFFERTORY_HYMN}}': order.praiseHymn2.title if order.praiseHymn2 else 'TBD',
+        '{{DOX}}': order.doxology.number.lstrip('0') if order.doxology else '95',
+        '{{CREED}}': order.creed.number.lstrip('0') if order.creed else '881',
+        '{{CREED_TITLE}}': order.creed.title if order.creed else '',
+        '{{PRAYER_HYMN_NUMBER}}': order.prayerHymn.number.lstrip('0') if order.prayerHymn else '',
+        '{{PRAYER_HYMN_TITLE}}': order.prayerHymn.title if order.prayerHymn else '',
+        '{{LITURGICAL_PRAYER}}': _liturgical_prayer_label(order),
+        '{{SCRIPTURE}}': order.scripture or '',
+        '{{SPEAKER}}': order.speakerShortName or '',
+        '{{SERMON_TITLE}}': order.sermonTitle or '',
+        '{{SERMON_SUBTITLE}}': order.sermonSubtitle or '',
+        '{{CLOSING_HYMN_NUMBER}}': order.closingHymn.number.lstrip('0') if order.closingHymn else '',
+        '{{CLOSING_HYMN_TITLE}}': order.closingHymn.title if order.closingHymn else '',
+    }
+
+    # Replace placeholders in all paragraphs
+    for paragraph in doc.paragraphs:
+        for placeholder, value in replacements.items():
+            if placeholder in paragraph.text:
+                _replace_in_runs(paragraph, placeholder, value)
+
+    # Also check tables (QR code section might be in one)
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    for placeholder, value in replacements.items():
+                        if placeholder in paragraph.text:
+                            _replace_in_runs(paragraph, placeholder, value)
+
+    # The hero image is an uploaded INPUT — it lives with the user's data.
+    hero_path = paths.DATA_DIR / order.heroImageFilename if order.heroImageFilename else None
+    _replace_hero_image(doc, hero_path)
+
+    # Render calendar block (if placeholder exists in template)
+    calendar_anchor = None
+    for paragraph in doc.paragraphs:
+        if '{{CALENDAR_BLOCK}}' in paragraph.text:
+            calendar_anchor = paragraph
+            break
+
+    if calendar_anchor:
+        _render_calendar_block(doc, calendar_anchor, order.date,
+                               (church or {}).get("id"))
+
+    # Save
+    paths.OUTPUT_DIR.mkdir(exist_ok=True)
+    # ⭐ The church goes in the NAME because both congregations share one service:
+    # he builds the content once, generates, switches church and generates again.
+    # Without it the second run silently overwrites the first — same date, same
+    # type, same folder. The id is the profile's short name, for exactly this.
+    # ⛔ Omitted for the neutral default, so a single-church install is unchanged.
+    filename = f"{order.date} - {_slug(church)}Bulletin.docx"
+    filepath = paths.unique_path(paths.OUTPUT_DIR / filename)
+    doc.save(str(filepath))
+    from .slides import _confirm_written
+    _confirm_written(filepath)
+    return filepath

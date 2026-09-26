@@ -1,0 +1,87 @@
+# ───────────────────────────────────────────────────────────────
+# Local-only files — kept out of the repo by location.
+# Keep every comment on its OWN line; an inline comment silently
+# breaks the ignore pattern it shares a line with.
+# ───────────────────────────────────────────────────────────────
+
+# Project-private working notes (local to each developer)
+rules_project.md
+rules_project-history.md
+STATE.md
+STATE-history.md
+core_principles.md
+# The bug tracker is private in EVERY repo, public or not.
+# Ignored BEFORE the files were created, never retrofitted.
+docs/bugs.json
+docs/bugs-history.json
+
+# The workshop — benches, its server config and its launcher — is never in a public
+# repo (rules.md §16.6). It is an internal tool and it reads the private layer: the
+# tracker bench renders the gitignored tracker. A repo that is private FOREVER may
+# track one; "private until release" may not.
+# ⭐ ONE DIRECTORY, ONE LINE, AND THE WALL IS GEOGRAPHY RATHER THAN A ROSTER. Everything
+# the workshop is lives in here, so git cannot reach any of it and nothing has to be
+# remembered when a bench is added. It was three scattered paths until 2026-09-26, and
+# the one that sat outside reached the public repo and survived two history scrubs.
+/workshop/
+# User data — calendar templates, events, notes
+/data/
+# Local tooling / editor config
+.claude/
+# Commit-message scratch file
+.bobcommit
+
+# ───────────────────────────────────────────────────────────────
+# Copyrighted / per-user content — never commit
+# ───────────────────────────────────────────────────────────────
+
+# Hymnal lyrics data (copyrighted material)
+hymnal-json/
+# Scripture cache (user-fetched Bible text)
+scripture-cache/
+# Source hymnal files (large binary)
+*.ppt
+*.pptx
+# Uploaded theme images
+backend/uploads/
+# Generated bulletins/slides
+output/
+# App settings (per-user)
+settings.json
+
+# ───────────────────────────────────────────────────────────────
+# Build / dependency artifacts (regenerable)
+# ───────────────────────────────────────────────────────────────
+node_modules/
+dist/
+build/
+*.spec
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.vite/
+*.exe
+# Runtime logs from the dev-server manager (may contain local paths)
+*.log
+
+# ───────────────────────────────────────────────────────────────
+# Editor / OS noise
+# ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+*.tmp.*
+
+# ───────────────────────────────────────────────────────────────
+# Environment
+# ───────────────────────────────────────────────────────────────
+.env
+.env.local
+# The bug tracker is private: kept on disk, never in the repo
+/BUGS.md
