@@ -70,7 +70,14 @@ if [ -n "$(git status --porcelain build-number.txt)" ]; then
   echo "[lock] committing the number ..."
   git add build-number.txt
   git commit -q -m "build $N - the number"
-  git push -q
+  # ⛔⛔ BY NAME, NEVER A BARE `git push`. A bare push depends on the branch having an
+  # upstream, which is configuration rather than a fact about the repo — and a repo
+  # whose public history has been recreated comes back without one. Build 23 built,
+  # signed, fanned out and verified on both platforms, then failed here with
+  # "no upstream branch", leaving the counter committed and unpushed.
+  # ⭐ Naming the remote and the branch is the rule everywhere else too: what leaves
+  # is what was named, never whatever a config happens to point at.
+  git push -q origin master
   git push -q zora master
   echo "       build $N committed and pushed (origin + zora)."
 fi
