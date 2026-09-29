@@ -579,6 +579,45 @@ def _add_title_pill(slide, title_text: str, top=None, font_size=48):
     return shape, num_lines
 
 
+# ⭐⭐ A CREDIT IS SMALL PRINT AT THE FOOT, AND ONE FUNCTION DECIDES THAT.
+# @decision:gold 2026-09-29 · It used to sit directly under the title pill, where it
+# crowded the banner and read as a subtitle — the first thing the eye lands on after
+# the hymn's name. At the foot it is present, legible and out of the way, which is the
+# whole job: the line has to be on the page, it does not have to be READ.
+# ⛔ FOUR RENDERERS DRAW ONE — hymn first, hymn continuation, liturgy first, liturgy
+# continuation. Four copies of a position is four things to keep in step, and the
+# liturgy pair had no copy at all, so every creed and affirmation carrying a credit
+# simply dropped it.
+# ⚠ THE WIDTH STOPS SHORT OF THE SOURCE BADGE, which sits bottom-RIGHT. They share the
+# same band, and a long credit would otherwise run under it.
+_CREDIT_HEIGHT = Emu(400_000)
+_CREDIT_BOTTOM_GAP = Emu(200_000)
+_BADGE_RESERVE = Emu(2_500_000)   # badge width plus its right margin and a gap
+
+
+def _add_credit(slide, text: str):
+    """Draw a copyright/permission line as small print at the foot, left-justified."""
+    if not text:
+        return
+    box = slide.shapes.add_textbox(
+        TEXT_LEFT,
+        SLIDE_HEIGHT - _CREDIT_HEIGHT - _CREDIT_BOTTOM_GAP,
+        Emu(int(SLIDE_WIDTH) - int(TEXT_LEFT) - int(_BADGE_RESERVE)),
+        _CREDIT_HEIGHT,
+    )
+    box.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+    box.text_frame.word_wrap = True
+    p = box.text_frame.paragraphs[0]
+    p.text = text
+    p.alignment = PP_ALIGN.LEFT
+    p.font.name = THEME_FONT
+    p.font.size = Pt(18)
+    p.font.color.rgb = THEME_TITLE_COLOR
+    _set_paragraph_spacing(p, 50)
+    _add_shadow(box)
+    return box
+
+
 def _create_hymn_first_slide(prs, slide_info: dict):
     """Create a hymn's first slide with title pill, attribution, lyrics, background, and source badge."""
     slide = prs.slides.add_slide(prs.slide_layouts[6])  # Blank
@@ -591,23 +630,11 @@ def _create_hymn_first_slide(prs, slide_info: dict):
     extra_lines = max(0, title_lines - 1)
     line_offset = Emu(730_000)  # ~0.8" per extra title line
 
-    # 3. Attribution line (if present)
-    attr_top = Emu(1_200_000) + (line_offset * extra_lines)
-    if slide_info['attribution']:
-        attr_box = slide.shapes.add_textbox(
-            TEXT_LEFT, attr_top, TEXT_WIDTH, Emu(400_000)
-        )
-        attr_box.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
-        p = attr_box.text_frame.paragraphs[0]
-        p.text = slide_info['attribution']
-        p.font.name = THEME_FONT
-        p.font.size = Pt(22)
-        p.font.color.rgb = THEME_TITLE_COLOR
-        _set_paragraph_spacing(p, 50)
-        _add_shadow(attr_box)
-        lyrics_top = Emu(1_700_000) + (line_offset * extra_lines)
-    else:
-        lyrics_top = Emu(1_400_000) + (line_offset * extra_lines)
+    # 3. The credit goes to the FOOT (_add_credit), not under the title.
+    # ⭐ So the lyrics start where they would if there were no credit at all — the
+    # verse no longer pays for the line, which is what made it feel crowded.
+    _add_credit(slide, slide_info['attribution'])
+    lyrics_top = Emu(1_400_000) + (line_offset * extra_lines)
 
     # 4. Lyrics text box
     if slide_info['lyrics']:
@@ -713,20 +740,7 @@ def _create_hymn_continuation_slide(prs, slide_info: dict):
         _add_shadow(lyrics_box)
 
     _add_hymn_background(slide)
-    # ⭐ 22pt and at the FOOT — the same size the first slide gives a credit, and the
-    # opposite corner from the source badge so the two cannot collide.
-    if slide_info.get('attribution'):
-        attr_box = slide.shapes.add_textbox(
-            TEXT_LEFT, SLIDE_HEIGHT - Emu(700_000), TEXT_WIDTH - Emu(2_400_000), Emu(400_000)
-        )
-        attr_box.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
-        pa = attr_box.text_frame.paragraphs[0]
-        pa.text = slide_info['attribution']
-        pa.font.name = THEME_FONT
-        pa.font.size = Pt(22)
-        pa.font.color.rgb = THEME_TITLE_COLOR
-        _set_paragraph_spacing(pa, 50)
-        _add_shadow(attr_box)
+    _add_credit(slide, slide_info.get('attribution'))
 
     return slide
 
@@ -778,6 +792,10 @@ def _create_liturgy_first_slide(prs, slide_info: dict, bg_path: Path, slot_for_b
             SLIDE_WIDTH, SLIDE_HEIGHT
         ))
 
+    # ⛔ A creed or affirmation can carry a credit too — several in umh-services do —
+    # and this path never drew one, so it was parsed out of the text and then lost.
+    _add_credit(slide, slide_info.get('attribution'))
+
     return slide
 
 
@@ -805,6 +823,10 @@ def _create_liturgy_continuation_slide(prs, slide_info: dict, bg_path: Path, slo
             _backdrop(bg_path, slot_for_bg), Emu(0), Emu(0),
             SLIDE_WIDTH, SLIDE_HEIGHT
         ))
+
+    # ⛔ A creed or affirmation can carry a credit too — several in umh-services do —
+    # and this path never drew one, so it was parsed out of the text and then lost.
+    _add_credit(slide, slide_info.get('attribution'))
 
     return slide
 
