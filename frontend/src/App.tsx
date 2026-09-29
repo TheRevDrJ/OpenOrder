@@ -714,17 +714,15 @@ function App() {
               more like an error than something useful"), and the undo belongs where
               someone looks when they are worried about their work: the words telling
               them whether it is saved. @decision:gold 2026-09-25 */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={async () => {
-                if (!order.date || needsChurch) return
-                await refreshRevisions(); setRevertOpen(o => !o)
-              }}
-              disabled={!order.date || needsChurch}
-              className="text-sm text-muted-foreground flex items-center gap-1.5 whitespace-nowrap
-                         rounded px-2 py-1 -mx-2 hover:bg-accent hover:text-foreground
-                         disabled:hover:bg-transparent disabled:cursor-default transition-colors"
+          <div className="relative flex items-center gap-1">
+            {/* ⛔⛔ THE STATUS IS A STATUS. It used to be the only door to the history,
+                and that failed the one test that counts: a service was lost, its owner
+                went looking for the undo, and could not find it. "Saved" is a word that
+                says nothing is wrong — which is the exact thing it reads after a clear
+                has just wiped the form, so the label argues against clicking the control
+                that would take it back. @decision:gold 2026-09-29 */}
+            <span
+              className="text-sm text-muted-foreground flex items-center gap-1.5 whitespace-nowrap px-2 py-1"
               aria-live="polite"
             >
               {needsChurch ? (
@@ -742,9 +740,30 @@ function App() {
                   Saved
                 </>
               )}
+            </span>
+            {/* ⭐ The undo says what it is, next to the status rather than inside it. */}
+            <button
+              type="button"
+              onClick={async () => {
+                if (!order.date || needsChurch) return
+                await refreshRevisions(); setRevertOpen(o => !o)
+              }}
+              disabled={!order.date || needsChurch}
+              title="Go back to an earlier version of this service"
+              className="text-sm flex items-center gap-1 whitespace-nowrap rounded px-2 py-1
+                         border border-input text-muted-foreground
+                         hover:bg-accent hover:text-foreground
+                         disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-default
+                         transition-colors"
+            >
+              Revert
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
             </button>
             {revertOpen && (
-              <div className="absolute left-0 top-full mt-1 z-20 w-80 rounded-md border border-input bg-background shadow-lg p-1">
+              <div className="absolute right-0 top-full mt-1 z-20 w-80 rounded-md border border-input bg-background shadow-lg p-1">
                 <p className="px-3 pt-2 pb-1 text-xs font-medium text-muted-foreground">
                   Earlier versions
                 </p>
