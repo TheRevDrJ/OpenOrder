@@ -36,7 +36,15 @@ function App() {
   // behind clicking the save status, which nobody would find. An action is only
   // "reversible instead of confirmed" when the reversal is DISCOVERABLE.
   // @decision:gold 2026-09-25
-  const [confirmClear, setConfirmClear] = useState(false)
+  /** ⛔⛔ STARTING A NEW SERVICE ASKS FOR ITS DATE FIRST, AND THAT IS THE WHOLE FIX.
+   *  It used to empty the form and KEEP the date, then mark it dirty — so the "new"
+   *  service was the old one's file, and autosave wrote the blank over a finished
+   *  service within a second. The confirm even promised "your current service is
+   *  already saved", which was true as you read it and false a moment later.
+   *  ⭐ A date is chosen before anything is cleared, so the file you were on is never
+   *  the target. @decision:gold 2026-09-29 · BUG-027 */
+  const [newDate, setNewDate] = useState<string | null>(null)
+  const [newDateTaken, setNewDateTaken] = useState(false)
   const [pastServices, setPastServices] = useState<{ date: string; filename: string }[]>([])
   const [loadingPast, setLoadingPast] = useState(false)
   const [generating, setGenerating] = useState(false)
@@ -444,18 +452,37 @@ function App() {
    *  Revert — and the toast says so at the one moment it is useful. A prompt on a
    *  reversible action is friction pretending to be safety.
    */
-  async function handleClear() {
-    if (!order.date) return
-    // ⛔ The dialog promises the current service is already saved. If it is not,
-    // that promise is void and the form is NOT emptied.
-    if (!await boundarySave('before-clear')) return
-    setOrder(emptyOrder(order.date))
+  /** The Sunday after the one being looked at — so New from 10/04 offers 10/11. */
+  function nextSundayAfter(from: string): string {
+    const d = new Date((from || new Date().toISOString().slice(0, 10)) + 'T12:00:00')
+    d.setDate(d.getDate() + 1)
+    while (d.getDay() !== 0) d.setDate(d.getDate() + 1)
+    return d.toISOString().slice(0, 10)
+  }
+
+  /** ⛔ Refuses a date that already holds a service: emptying THAT one is the same
+   *  bug wearing a different date. Opens it instead. */
+  async function startNewService() {
+    if (!newDate || !church) return
+    const existing = await listServices(church).catch(() => [])
+    if (existing.some(s => s.date === newDate && s.own)) {
+      setNewDateTaken(true)
+      return
+    }
+    // ⛔⛔ SAVE WHAT IS BEING LEFT FIRST. We move off this date, so anything typed
+    // since the last autosave belongs to the OLD service and would go with it.
+    // A failed save stops the move — the promise that it is kept has to be true.
+    if (!await boundarySave('before-new-service')) return
+    const target = newDate
+    setNewDate(null)
+    // ⭐ The old date is never cleared. We move to the new one and start it empty.
+    setOrder({ ...emptyOrder(target), date: target })
     setHeroPreview(null)
-    setEmptyOnPurpose(true)          // ⭐ this emptiness is the point (BUG-022)
-    setSaveState('dirty')            // autosave persists the cleared form
+    setEmptyOnPurpose(true)
+    setSaveState('dirty')
     if (church) await applyChurchDefaults(church)
-    refreshRevisions()
-    setToast({ id: Date.now(), message: 'Form cleared', detail: 'Revert… brings it back' })
+    refreshRevisions(target, church)
+    setToast({ id: Date.now(), message: 'New service started', detail: target })
   }
 
   async function handleRevert(id: string) {
@@ -856,7 +883,7 @@ function App() {
                   variant="outline"
                   className="h-9 font-normal text-muted-foreground"
                   disabled={!order.date || needsChurch}
-                  onClick={() => setConfirmClear(true)}
+                  onClick={() => { setNewDate(nextSundayAfter(order.date)); setNewDateTaken(false) }}
                 >
                   New service
                 </Button>
@@ -1210,13 +1237,35 @@ function App() {
         </footer>
       )}
 
+      {/* ⭐ The date comes first. Nothing is cleared until one is chosen, and a date
+          that already holds a service is refused rather than emptied. */}
       <ConfirmDialog
-        open={confirmClear}
-        title="Start a new service?"
-        body="This empties the form. Your current service is already saved."
-        confirmLabel="Start new"
-        onConfirm={() => { setConfirmClear(false); handleClear() }}
-        onCancel={() => setConfirmClear(false)}
+        open={!!newDate}
+        title="Start a new service"
+        body={
+          <div className="space-y-2">
+            <p>Which Sunday is it for?</p>
+            <input
+              type="date"
+              value={newDate ?? ''}
+              onChange={e => { setNewDate(e.target.value); setNewDateTaken(false) }}
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+            />
+            {newDateTaken ? (
+              <p className="text-amber-500">
+                There is already a service on that date. Open it from
+                “Open a past service…” — starting a new one here would empty it.
+              </p>
+            ) : (
+              <p className="text-muted-foreground">
+                The service you are on now is kept. Nothing about it changes.
+              </p>
+            )}
+          </div>
+        }
+        confirmLabel="Start it"
+        onConfirm={startNewService}
+        onCancel={() => { setNewDate(null); setNewDateTaken(false) }}
       />
       <SettingsPanel
         open={settingsOpen}

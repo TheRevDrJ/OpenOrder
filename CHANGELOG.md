@@ -2,6 +2,25 @@
 
 What has changed in each release of OpenOrder, newest first.
 
+## 1.17.0 — 2026-09-29 · Starting a new service asks which Sunday
+
+*Starting a new service emptied the form but kept the date you were on, and then
+saved the empty form to it. A finished service could be replaced by a blank one in
+about a second, with nothing to warn you and nothing asked.*
+
+- **Fixed:** starting a new service no longer touches the service you were working
+  on. It asks which Sunday the new one is for, and nothing is emptied until you
+  have chosen.
+- **Fixed:** a date that already holds a service is refused rather than emptied. It
+  tells you the service is there and points you at Open a past service.
+- **Added:** the date offered is the Sunday after the one you are looking at, so the
+  next week is one click — and you can type any date to work further ahead.
+- **Changed:** the service you are leaving is saved before the new one starts, and
+  if that save cannot be made the new service does not start.
+- **Changed:** the undo has a name. It was reached by clicking the words “Saved”,
+  which is a status, and which reads as nothing being wrong at exactly the moment a
+  service has been cleared. There is now a Revert button beside it.
+
 ## 1.16.0 — 2026-09-29 · Two readings in one service
 
 *A service can call for a Gospel and the Old Testament passage it answers. The
