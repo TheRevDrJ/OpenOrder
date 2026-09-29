@@ -1,16 +1,16 @@
 /**
  * The words the church-switch question asks — and nothing else.
  *
- * ⭐⭐ WHY THIS IS ITS OWN MODULE. The workshop bench reviews this copy, and a bench that
- * renders its own COPY of the words reviews the copy. One function, imported by the app
- * and by the bench, so what is read on the bench is what the app will say.
- * ⛔ The sample states live with the BENCH, not here: example data in shipped source is
- * how a real organization's name ends up in a public repo.
+ * ⭐⭐ WHY THIS IS ITS OWN MODULE. One home for the wording, imported rather than
+ * retyped, so no second copy of these strings can drift from what the app actually
+ * says — and so the words can be read and judged on their own, away from the layout.
+ * ⛔ NO SAMPLE STATES HERE. Example data in shipped source is how a real organization's
+ * name ends up in a public repo; anything that needs specimens keeps its own.
  *
  * ⭐ PLAIN DATA, NO JSX, on purpose: the copy is then reviewable as text, and where the
  * emphasis goes stays a question for the layer that draws it.
  *
- * CALLED BY: App.tsx (selectChurch), and the workshop's switch bench.
+ * CALLED BY: App.tsx (selectChurch).
  */
 
 export interface SwitchOption {

@@ -258,8 +258,8 @@ function App() {
       // `switchChoice` returning null, below.)
       if (sameAlready) { commit(id); await load(); await applyChurchDefaults(id); return }
 
-      // ⭐ The words live in `lib/church-switch.ts` so the workshop bench reviews THESE
-      // strings rather than a copy of them. Here we only draw them.
+      // ⭐ The words live in `lib/church-switch.ts` so there is exactly one copy of
+      // them. Here we only draw them.
       const leavingName = leaving ? (churches.find(c => c.id === leaving)?.name ?? leaving) : null
       const spec = switchChoice({ name, leavingName, date: order.date, theirs: !!theirs, mine })
       if (!spec) { commit(id); await applyChurchDefaults(id); return }

@@ -420,9 +420,10 @@ def church_art_preview(church_id: str, slot: str, style: str | None = None, labe
                        blur: int | None = None):
     """Render a section slide EXACTLY as generation would, and return the PNG.
 
-    ⭐ THE BENCH USES THIS RATHER THAN CSS. A workshop page that approximated the
-    plate in CSS would be reviewing an impression; this runs the real compositor,
-    so what is chosen on screen is what lands in the deck.
+    ⭐ IT RUNS THE REAL COMPOSITOR, WHICH IS THE WHOLE POINT OF THE ENDPOINT.
+    Anything that previewed the plate by approximating it in CSS would be showing
+    an impression of the result; this returns the same image generation puts in
+    the deck, so what is chosen on screen is what ships.
     """
     import io
     from .churches import IMAGE_SLOTS, image_for

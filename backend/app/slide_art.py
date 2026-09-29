@@ -15,7 +15,7 @@ simpler, not harder.
 through THIS module, so what is chosen on screen is what a deck contains — never a
 CSS impression of it.
 
-CALLED BY: app.slides (generation), app.main (the workshop's preview endpoint).
+CALLED BY: app.slides (generation), app.main (the art preview endpoint).
 """
 
 from __future__ import annotations

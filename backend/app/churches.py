@@ -87,7 +87,7 @@ GENERIC: dict = {
         "liturgy_uppercase": False,
         "shadow_enabled": True,
         # How a section slide's title is set over its photograph. The vocabulary
-        # is slide_art.STYLES; the workshop bench renders every one of them.
+        # is slide_art.STYLES.
         "plate_style": "frosted_plate",
         # Where that plate sits: center, or a corner/edge such as bottom-right.
         "plate_position": "bottom-right",
