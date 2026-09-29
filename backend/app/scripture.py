@@ -312,7 +312,8 @@ def _bsb_fallback(reference: str, wanted: str, why: str) -> dict | None:
     """
     if wanted == "BSB":
         return None
-    got = fetch_scripture(reference, "BSB")
+    # ⛔ _fetch_one, not fetch_scripture: we are already inside one passage.
+    got = _fetch_one(reference, "BSB")
     if not got:
         return None
     got = dict(got)
@@ -330,11 +331,106 @@ def _bsb_fallback(reference: str, wanted: str, why: str) -> dict | None:
     return got
 
 
-def fetch_scripture(reference: str, translation: str = "BSB") -> dict | None:
+def _split_passages(ref_string: str) -> list[str]:
+    """Split a reference on semicolons: "Mark 2:21-22; Isaiah 43:18-19" -> two.
+
+    ⭐ THE SEMICOLON IS THE ONLY SEPARATOR, and that is deliberate. A COMMA already
+    means something inside one reference ("John 14:15-17, 25-27" is one passage with a
+    gap in it, handled by _runs), so a comma cannot also mean "and now a different
+    book" without the two readings of "Mark 2:21, 25" becoming ambiguous.
     """
-    Fetch scripture text for a reference and translation.
+    return [p.strip() for p in ref_string.split(";") if p.strip()]
+
+
+def fetch_scripture(reference: str, translation: str = "BSB") -> dict | None:
+    """Fetch one or several passages, in the order they were written.
+
+    ⛔⛔ A SECOND PASSAGE USED TO BE ABSORBED, NOT REFUSED. Everything below this
+    wrapper assumes ONE book: it reads the book off the first reference and then
+    collects verse ids from all of them. So "Mark 2:21-22; Isaiah 43:18-19" parsed as
+    the book of MARK with chapters [2, 43] and verses 21-19 — a reference that cannot
+    exist, built silently, with no error anywhere. ⚠ And when the second half was
+    malformed it simply vanished: the deck came out holding the first reading only,
+    while the bulletin printed BOTH, because the bulletin prints what was typed.
+    ⭐⭐ So the fix is a split at the top rather than a rewrite underneath: each
+    passage goes through the single-passage path that already works, and is cached
+    under its own name, so a reading reused next week is already on disk.
+
+    Returns the single-passage shape plus `passages`, and marks the first slide of
+    each passage — that marker is what puts a reference header back on screen when
+    the book changes: a new book opens a new slide, carrying the same header the
+    reading opened with. @decision:gold 2026-09-29
+    `problems` names any passage that could not be read, so a partial reading is
+    never silent again.
+    """
+    parts = _split_passages(reference)
+    if len(parts) <= 1:
+        got = _fetch_one(reference, translation)
+        if got and got.get("slides"):
+            got["slides"][0]["passage_start"] = True
+            got["slides"][0]["passage_reference"] = got.get("reference") or reference
+            got["passages"] = [{"reference": got.get("reference") or reference,
+                                "slides": len(got["slides"])}]
+        return got
+
+    passages, problems, all_slides, all_verses, fums_all = [], [], [], [], []
+    shown, name, copyright_, fallback = [], "", "", None
+    for part in parts:
+        got = _fetch_one(part, translation)
+        if not got or not got.get("slides"):
+            problems.append(part)
+            continue
+        ref_back = got.get("reference") or part
+        first = got["slides"][0]
+        first["passage_start"] = True
+        first["passage_reference"] = ref_back
+        all_slides.extend(got["slides"])
+        all_verses.extend(got.get("verses") or [])
+        shown.append(ref_back)
+        passages.append({"reference": ref_back, "slides": len(got["slides"])})
+        if got.get("fums"):
+            fums_all.append(got["fums"])
+        name = name or got.get("translation_name") or ""
+        copyright_ = copyright_ or got.get("copyright") or ""
+        # ⚠ The FIRST cause wins. Two passages can fail for different reasons, and a
+        # notice naming two is a notice nobody finishes reading; the remedy for the
+        # first is almost always the remedy for both.
+        fallback = fallback or got.get("fallback")
+
+    if not all_slides:
+        return None
+
+    result = {
+        "reference": "; ".join(shown),
+        "requested": reference,
+        "translation": translation,
+        "translation_name": name or translation,
+        "verses": all_verses,
+        "slides": all_slides,
+        "passages": passages,
+        "copyright": copyright_,
+        # ⚠ Kept singular for the existing caller, with the full list beside it: every
+        # passage of licensed text is a separate use and all of them get reported.
+        "fums": fums_all[0] if fums_all else "",
+        "fums_all": fums_all,
+    }
+    if fallback:
+        result["fallback"] = fallback
+    if problems:
+        result["problems"] = problems
+    # ⛔ NOT CACHED AS A COMBINATION. Each passage is already cached under its own
+    # name, which is the reusable unit; caching the pair as well would expire on its
+    # own clock and hand back a stale half.
+    return result
+
+
+def _fetch_one(reference: str, translation: str = "BSB") -> dict | None:
+    """
+    Fetch scripture text for ONE reference and translation.
     Returns {reference, translation, translation_name, verses: [{number, text}], slides: [...]}
     Uses cache if available.
+    ⛔ Callers want `fetch_scripture`, which handles several passages. This is the
+    single-passage path and assumes the reference names one book.
     """
     # Check cache first
     cached = _load_cached(reference, translation)

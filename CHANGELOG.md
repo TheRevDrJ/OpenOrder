@@ -2,6 +2,25 @@
 
 What has changed in each release of OpenOrder, newest first.
 
+## 1.16.0 — 2026-09-29 · Two readings in one service
+
+*A service can call for a Gospel and the Old Testament passage it answers. The
+scripture field took one reference, and a second one typed after it was quietly
+folded into the first — producing a reference that cannot exist, with no error.*
+
+- **Added:** separate passages with a semicolon — `Mark 2:21-22; Isaiah 43:18-19`.
+  Each passage begins on its own slide under its own reference, and they run one
+  after the other as a single reading. They stay in the order you write them.
+- **Fixed:** a reference naming two books no longer merges them. It used to take the
+  book from the first passage and the verses from both, so the slides could be built
+  from a chapter and verse range that do not exist together.
+- **Fixed:** a passage that cannot be read is now named instead of disappearing. The
+  bulletin prints every reference you type, so a passage missing from the slides used
+  to leave the printed order of worship promising a reading the screen did not have.
+  The scripture preview says so as you type, and generating says so again.
+- **Changed:** a comma still means a gap inside one reference, as in
+  `John 14:15-17, 25-27`. Only the semicolon starts a new passage.
+
 ## 1.15.0 — 2026-09-26 · The app says when the hymnal is missing
 
 *The hymn collections are copyrighted, so a fresh install has none until one is

@@ -15,7 +15,8 @@ from .hymnal import search_hymns, get_hymn, get_hymn_by_ref
 from .models import OrderOfWorship
 from .bulletin import generate_bulletin
 from .slides import generate_slides
-from .scripture import fetch_scripture, get_available_translations, parse_reference
+from .scripture import (fetch_scripture, get_available_translations, parse_reference,
+                        _split_passages)
 from . import bible_api, calendar_data, churches
 
 app = FastAPI(title="Order of Worship")
@@ -587,8 +588,9 @@ def gen_slides(service_date: str, church: str | None = None):
     profile = _require_church(church)
     try:
         filepath = generate_slides(data, profile)
-        from .slides import _LAST_FALLBACK
+        from .slides import _LAST_FALLBACK, _LAST_PROBLEMS
         fallback = dict(_LAST_FALLBACK)
+        problems = list(_LAST_PROBLEMS)
     except PermissionError:
         raise HTTPException(
             409, "The slides file is open in another program (probably PowerPoint). Close it and try again."
@@ -599,8 +601,12 @@ def gen_slides(service_date: str, church: str | None = None):
         raise HTTPException(500, f"Slide generation failed: {str(e)}")
     # ⭐ Only present when the chosen translation had to be stood in for. The
     # UI says so; the alternative is a deck quietly in a translation nobody picked.
+    # ⚠ `problems` names a passage the deck does NOT contain although the bulletin
+    # prints it — the two documents disagreeing is the thing nobody notices until
+    # the reading is supposed to happen.
     return {"filename": filepath.name, "folder": str(filepath.parent),
-            **({"fallback": fallback} if fallback else {})}
+            **({"fallback": fallback} if fallback else {}),
+            **({"problems": problems} if problems else {})}
 
 
 # --- Scripture ---
@@ -864,12 +870,23 @@ def scripture_translations():
 def scripture_fetch(ref: str = "", translation: str = "BSB"):
     if not ref.strip():
         raise HTTPException(400, "Scripture reference is required")
-    parsed = parse_reference(ref)
-    if not parsed:
-        raise HTTPException(400, f"Could not parse scripture reference: {ref}")
+    # ⛔⛔ CHECKED PASSAGE BY PASSAGE, SO THE MESSAGE NAMES THE ONE THAT IS WRONG.
+    # parse_reference reads a single book; handed two, it answers about the FIRST and
+    # says nothing about the rest — so a reversed range in a second passage passed this
+    # gate and then disappeared from the deck with no error anywhere.
+    parts = _split_passages(ref)
+    bad = [p for p in parts if not parse_reference(p)]
+    if bad and len(bad) == len(parts):
+        raise HTTPException(400, "Could not read " + " or ".join(bad)
+                            + ". Check the book, the chapter, and that the verses run forwards.")
     data = fetch_scripture(ref, translation)
     if not data:
         raise HTTPException(404, f"Could not fetch scripture for {ref} ({translation})")
+    # ⭐ A reference that is PARTLY readable returns 200 with the good passages and
+    # names the rest: refusing the lot would throw away a reading that is fine, and
+    # saying nothing is how half a reading reached a Sunday.
+    if bad:
+        data = {**data, "problems": sorted(set((data.get("problems") or []) + bad))}
     return data
 
 

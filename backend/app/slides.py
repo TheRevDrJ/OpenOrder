@@ -838,8 +838,13 @@ def _add_hymn_slides(prs, ref: HymnRef, bg_type: str = 'hymn'):
 
 
 def _create_scripture_first_slide(prs, reference: str, translation_name: str, slide_data: dict,
-                                  is_last: bool = True):
-    """Create the first scripture slide with reference title, verse text, and source badge."""
+                                  is_last: bool = True, badge: bool = True):
+    """Create a scripture slide that OPENS a passage: reference title, verse text, badge.
+
+    ⭐ `badge=False` for the second and later passages of one reading. The badge names
+    the translation, and that is a fact about the reading, not about the passage — two
+    of them on one screen-sequence is the duplication a fix already removed once.
+    """
     slide = prs.slides.add_slide(prs.slide_layouts[6])  # Blank
 
     # Title pill: scripture reference (e.g., "Matthew 4:1-11")
@@ -875,7 +880,8 @@ def _create_scripture_first_slide(prs, reference: str, translation_name: str, sl
     # one-slide reading it put the same translation twice on one screen, and
     # short readings are most of them.
     # ⚠ A one-slide reading gets ONE badge because its first slide IS its last.
-    _add_source_badge(slide, translation_name)
+    if badge:
+        _add_source_badge(slide, translation_name)
 
     # Background
     _add_hymn_background(slide)
@@ -929,6 +935,8 @@ def _create_scripture_continuation_slide(prs, slide_data: dict, is_last: bool = 
 # would touch every caller. Cleared at the top of every generate, so it can only
 # ever describe the run that just happened.
 _LAST_FALLBACK: dict = {}
+# Passages named in the reference that could not be read at all (see _add_scripture_slides).
+_LAST_PROBLEMS: list = []
 
 
 def _add_scripture_slides(prs, reference: str, translation: str):
@@ -951,14 +959,23 @@ def _add_scripture_slides(prs, reference: str, translation: str):
         return
 
     data = fetch_scripture(reference, translation)
-    if data and data.get("fums"):
-        bible_api.report_fums(data["fums"])
+    # ⭐ EVERY PASSAGE IS A SEPARATE USE. A reading of two licensed passages owes two
+    # reports; `fums` is kept singular for the old shape and the list is what we send.
+    for token in (data.get("fums_all") or ([data["fums"]] if data and data.get("fums") else [])) if data else []:
+        bible_api.report_fums(token)
     # ⭐ Carried out to the caller so the toast can say it too. The badge on the
     # slide already reads BSB, which is honest, but nobody checks a badge before
     # they have walked away from the computer.
     if data and data.get("fallback"):
         _LAST_FALLBACK.clear()
         _LAST_FALLBACK.update(data["fallback"])
+    # ⛔⛔ A PASSAGE WE COULD NOT READ IS CARRIED OUT, NEVER DROPPED QUIETLY. The
+    # bulletin prints the reference exactly as typed, so a passage missing from the
+    # deck leaves the printed page and the screen disagreeing — and the first time
+    # anyone finds out is mid-service.
+    _LAST_PROBLEMS.clear()
+    if data and data.get("problems"):
+        _LAST_PROBLEMS.extend(data["problems"])
     if not data or not data.get('slides'):
         return
 
@@ -968,9 +985,15 @@ def _add_scripture_slides(prs, reference: str, translation: str):
     # than the reference asked for, and the title is what the room reads.
     reference = data.get('reference') or reference
 
+    # ⭐⭐ A NEW BOOK OPENS A NEW SLIDE, WITH THE SAME HEADER THE READING OPENED WITH.
+    # @decision:gold 2026-09-29 · Two readings sit next to each other in one scripture
+    # section rather than becoming two sections: no separator between them, no second
+    # badge, just the reference back on screen when the book changes.
+    # ⛔ The badge stays on the very first slide and the credit on the very last, both of
+    # which are about the READING; only the header is per passage.
     for i, slide_data in enumerate(slides):
         is_last = (i == len(slides) - 1)
-        if i == 0:
+        if slide_data.get('passage_start') or i == 0:
             # ⛔ NO CREDIT LINE ON THE FIRST SLIDE. It already carries the source
             # badge, and on a ONE-SLIDE reading the credit landed a few inches
             # from it — the same translation twice on one screen, which is the
@@ -979,7 +1002,10 @@ def _add_scripture_slides(prs, reference: str, translation: str):
             # last thing on the page, which is where the requirement wants it.
             # ⚠ A longer reading still gets the credit, on its LAST slide, because
             # the badge is only on the first one. @decision:gold 2026-09-25
-            _create_scripture_first_slide(prs, reference, trans_name, slide_data, is_last)
+            _create_scripture_first_slide(
+                prs,
+                slide_data.get('passage_reference') or reference,
+                trans_name, slide_data, is_last, badge=(i == 0))
         else:
             _create_scripture_continuation_slide(prs, slide_data, is_last, trans_name)
 
@@ -1020,6 +1046,9 @@ def generate_slides(order: OrderOfWorship, church: dict | None = None) -> Path:
     # this process. A backdrop cached under the old one would be silently reused.
     _backdrop_cache.clear()
     _LAST_FALLBACK.clear()
+    # ⚠ Same reason: a run that reads cleanly must not inherit the previous run's
+    # unreadable passage and warn about a reference this deck does not contain.
+    _LAST_PROBLEMS.clear()
     prs = Presentation()
 
     # Set slide dimensions

@@ -515,8 +515,23 @@ function App() {
     requested?: string
     /** Set when the chosen translation could not be fetched and BSB stood in. */
     fallback?: { wanted: string; why: string; tail: string }
+    /** Passages named in the reference that could not be read at all. */
+    problems?: string[]
+    /** One entry per passage, in the order they were written. */
+    passages?: { reference: string; slides: number }[]
     slides?: unknown[]
   } | null>(null)
+  /** ⭐ A reference nothing could be made of. Held SEPARATELY from the preview: the
+   *  preview being null is also how "nothing typed yet" looks, and those two states
+   *  owe the reader completely different things. */
+  const [scriptureError, setScriptureError] = useState<string | null>(null)
+  /** ⛔⛔ THE MODAL IS AT GENERATE, NOT WHILE TYPING. @decision:gold 2026-09-29
+   *  The place it belongs is the moment it costs something: the bulletin prints the
+   *  reference exactly as typed, so a passage the deck could not read makes the
+   *  printed page and the screen disagree.
+   *  ⚠ A modal while typing would fire on every half-written reference — "Mark 2:2"
+   *  is unreadable on the way to being fine. That stays inline. */
+  const [scriptureProblems, setScriptureProblems] = useState<string[] | null>(null)
   const [loadingScripture, setLoadingScripture] = useState(false)
   const scriptureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** The reference the preview last ran for — decides debounce vs immediate. */
@@ -527,6 +542,7 @@ function App() {
   async function fetchScripturePreview(ref: string, translation: string) {
     if (!ref.trim()) {
       setScripturePreview(null)
+      setScriptureError(null)
       return
     }
     setLoadingScripture(true)
@@ -535,11 +551,18 @@ function App() {
       if (res.ok) {
         const data = await res.json()
         setScripturePreview(data)
+        setScriptureError(null)
       } else {
+        // ⛔ The reason used to be thrown away and the preview set to null, which is
+        // indistinguishable from an empty field — so a reference that could not be
+        // read showed NOTHING, and the first sign of trouble was a missing reading.
+        const err = await res.json().catch(() => null)
         setScripturePreview(null)
+        setScriptureError(err?.detail || 'That reference could not be read.')
       }
     } catch {
       setScripturePreview(null)
+      setScriptureError(null)   // a dead server is not a bad reference
     } finally {
       setLoadingScripture(false)
     }
@@ -620,6 +643,9 @@ function App() {
         const data = await res.json()
         confirmSaved('Presentation', data)
         reportFallback(data.fallback)
+        // ⚠ The deck is missing a reading the bulletin will print. That is worth
+        // stopping for, which is why this is a dialog and the fallback is a notice.
+        if (data.problems?.length) setScriptureProblems(data.problems)
       } else {
         const err = await res.json()
         setErrorMsg(err.detail || 'Failed to generate slides')
@@ -986,8 +1012,30 @@ function App() {
             {loadingScripture && (
               <div className="text-sm text-muted-foreground italic">Fetching scripture...</div>
             )}
+            {/* ⛔ NOTHING COULD BE READ. Inline rather than a dialog: this fires on the
+                way to a correct reference, and a modal on every half-typed one is a
+                modal people learn to dismiss without reading. */}
+            {scriptureError && !loadingScripture && (
+              <div className="rounded-lg p-3 text-sm border border-amber-500/40 bg-amber-500/10">
+                <span className="font-medium">{scriptureError}</span>
+              </div>
+            )}
+
             {scripturePreview && !loadingScripture && (
               <div className="bg-muted/50 rounded-lg p-3 text-sm max-h-48 overflow-y-auto border border-border">
+                {/* ⚠ PART OF THE REFERENCE COULD NOT BE READ. The rest is fine and is
+                    shown below, so this is a warning and not an error — but the bulletin
+                    prints every passage typed, including this one, so the printed page
+                    would promise a reading the deck does not have. */}
+                {!!scripturePreview.problems?.length && (
+                  <div className="mb-2 rounded px-2 py-1 border border-amber-500/40 bg-amber-500/10 text-xs">
+                    <span className="font-medium">
+                      {scripturePreview.problems.join(' and ')}
+                    </span>{' '}
+                    could not be read, so it will not be in the slides — the bulletin still
+                    prints it. Check the chapter and that the verses run forwards.
+                  </div>
+                )}
                 {/* ⛔⛔ THE SLIDE COUNT COMES FROM THE SERVER, NOT FROM DIVIDING
                     THE VERSE COUNT BY TWO. A paraphrase returns a whole
                     paragraph as ONE verse, so the old arithmetic said "1 slide"
@@ -1179,6 +1227,40 @@ function App() {
             onPick: () => dismissHymnalNotice(false) },
         ]}
         onCancel={() => dismissHymnalNotice(false)}
+      />
+      {/* ⛔⛔ THE DECK AND THE PRINTED PAGE DISAGREE, AND ONLY THIS SAYS SO.
+          @decision:gold 2026-09-29 · The bulletin substitutes the reference verbatim,
+          so an unreadable passage still reaches the printed order of worship while the
+          slides simply do not have it. Nobody finds that out until the reading. */}
+      <ChoiceDialog
+        open={!!scriptureProblems}
+        title={scriptureProblems && scriptureProblems.length > 1
+          ? 'Two passages could not be read'
+          : 'A passage could not be read'}
+        body={
+          <>
+            <p>
+              The slides were made without{' '}
+              <span className="text-foreground">{(scriptureProblems ?? []).join(' and ')}</span>.
+              The bulletin still prints it, so the printed order of worship names a reading
+              the slides do not contain.
+            </p>
+            <p className="mt-1">
+              The usual cause is a chapter or verse that does not exist, or a range that
+              runs backwards — <span className="text-foreground">43:18-10</span> instead of{' '}
+              <span className="text-foreground">43:18-19</span>.
+            </p>
+          </>
+        }
+        options={[
+          { id: 'fix', label: 'Fix the reference and generate again',
+            detail: 'Nothing was overwritten — generating again writes a new file.',
+            onPick: () => setScriptureProblems(null) },
+          { id: 'keep', label: 'Keep the slides as they are',
+            detail: 'The reading stays in the bulletin only.',
+            onPick: () => setScriptureProblems(null) },
+        ]}
+        onCancel={() => setScriptureProblems(null)}
       />
       <ChoiceDialog
         open={!!pendingChoice}
