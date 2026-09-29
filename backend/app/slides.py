@@ -265,8 +265,26 @@ def _load_hymn_data(ref: HymnRef) -> dict | None:
     return None
 
 
+# ⭐⭐ THE FORMS A CREDIT ACTUALLY TAKES IN THIS DATA, measured across all 1158
+# entries: 161 credit lines in 148 hymns, and every match is genuinely a credit —
+# no lyric anywhere in the corpus trips these. @decision:gold 2026-09-29
+# ⛔ The © test alone caught barely half. "By permission of Elinor Fosdick Downs"
+# fell through and projected at 44pt in the middle of verse one, because a line the
+# detector misses is not treated as a credit — it is treated as something to SING.
+# ⚠ `admin. by`, `c/o` and `reprinted` are the continuation halves of a credit that
+# wrapped onto a second line in the source deck; they carry no © of their own.
+_ATTRIBUTION_PATTERNS = (
+    'by permission',
+    'admin. by',
+    'all rights reserved',
+    'reprinted',
+    'c/o ',
+    'copyright',
+)
+
+
 def _is_attribution_line(line: str) -> bool:
-    """Check if a line is a copyright attribution."""
+    """Check if a line is a copyright attribution rather than something to sing."""
     line_stripped = line.strip()
     if '©' in line_stripped or '\u00a9' in line_stripped:
         return True
@@ -274,7 +292,12 @@ def _is_attribution_line(line: str) -> bool:
         return True
     if line_stripped.startswith('FORMER ') and line_stripped.isupper():
         return True
-    return False
+    # ⚠ UPPERCASE AND COLONED, deliberately: "WORDS:" is a credit, "words of hope"
+    # is a lyric, and the corpus contains both. Case is what separates them.
+    if re.match(r'^(WORDS|MUSIC|TEXT|TUNE|ARR\.|TRANS\.)\s*:', line_stripped):
+        return True
+    lowered = line_stripped.lower()
+    return any(pat in lowered for pat in _ATTRIBUTION_PATTERNS)
 
 
 def _is_refrain_label(line: str) -> bool:
@@ -314,14 +337,18 @@ def _parse_hymn_slides(hymn_data: dict) -> list[dict]:
 
         # Separate attribution/copyright from lyrics
         lyrics = []
-        attribution = ""
+        attribution_lines: list[str] = []
         verse_label = ""
         is_refrain = False
         is_first = (si == 0)
 
         for line in lines:
             if _is_attribution_line(line):
-                attribution = line.strip()
+                # ⛔⛔ ACCUMULATED, NOT OVERWRITTEN. A credit that wrapped onto several
+                # lines in the source deck arrives as several lines here — UMH 211 has
+                # three. Assigning kept only the LAST, so two were dropped from the deck
+                # entirely and the survivor opened mid-sentence: "House; antiphons ©…".
+                attribution_lines.append(line.strip())
                 continue
             if re.match(r'^\((?:verse\s+)?\d+\)$', line.strip(), re.IGNORECASE):
                 verse_label = line.strip()
@@ -339,7 +366,9 @@ def _parse_hymn_slides(hymn_data: dict) -> list[dict]:
             'title': title if is_first else '',
             'number': number if is_first else '',
             'source': hymn_data.get('source', ''),
-            'attribution': attribution,
+            # ⭐ Joined with a space: they were one sentence before the source deck
+            # wrapped them, and rejoining reads correctly at any width.
+            'attribution': ' '.join(attribution_lines),
             'lyrics': lyrics,
             'refrain': is_refrain,
             'verse_label': verse_label,
@@ -624,7 +653,15 @@ def _create_hymn_first_slide(prs, slide_info: dict):
 
 
 def _create_hymn_continuation_slide(prs, slide_info: dict):
-    """Create a hymn continuation slide (lyrics only + background)."""
+    """Create a hymn continuation slide: lyrics, background, and any credit on THIS slide.
+
+    ⛔⛔ A CREDIT ON A LATER SLIDE USED TO BE DELETED. The parser lifted it out of the
+    lyrics on every slide, but only the FIRST slide ever drew one — so a set whose
+    sections each carry their own credit (TFWS 2257 does, on slides 4, 7 and 9) lost
+    all of them from the deck. ⚠ Losing a credit is the one failure here that is not
+    cosmetic: the line is on the page in the hymnal because somebody's licence puts
+    it there. @decision:gold 2026-09-29
+    """
     slide = prs.slides.add_slide(prs.slide_layouts[6])  # Blank
 
     if slide_info['lyrics']:
@@ -676,6 +713,21 @@ def _create_hymn_continuation_slide(prs, slide_info: dict):
         _add_shadow(lyrics_box)
 
     _add_hymn_background(slide)
+    # ⭐ 22pt and at the FOOT — the same size the first slide gives a credit, and the
+    # opposite corner from the source badge so the two cannot collide.
+    if slide_info.get('attribution'):
+        attr_box = slide.shapes.add_textbox(
+            TEXT_LEFT, SLIDE_HEIGHT - Emu(700_000), TEXT_WIDTH - Emu(2_400_000), Emu(400_000)
+        )
+        attr_box.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+        pa = attr_box.text_frame.paragraphs[0]
+        pa.text = slide_info['attribution']
+        pa.font.name = THEME_FONT
+        pa.font.size = Pt(22)
+        pa.font.color.rgb = THEME_TITLE_COLOR
+        _set_paragraph_spacing(pa, 50)
+        _add_shadow(attr_box)
+
     return slide
 
 
