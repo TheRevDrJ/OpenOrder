@@ -285,7 +285,10 @@ _ATTRIBUTION_PATTERNS = (
 
 def _is_attribution_line(line: str) -> bool:
     """Check if a line is a copyright attribution rather than something to sing."""
-    line_stripped = line.strip()
+    # ⚠ WHITESPACE IS NORMALIZED FIRST. Two hymns read "By  permission of…" with a
+    # double space — from the source deck, not from anything we did — and matched
+    # nothing, so a credit projected as a line of the hymn over a single character.
+    line_stripped = re.sub(r'\s+', ' ', line.strip())
     if '©' in line_stripped or '\u00a9' in line_stripped:
         return True
     if line_stripped.startswith('FROM THE'):
@@ -590,6 +593,7 @@ def _add_title_pill(slide, title_text: str, top=None, font_size=48):
 # simply dropped it.
 # ⚠ THE WIDTH STOPS SHORT OF THE SOURCE BADGE, which sits bottom-RIGHT. They share the
 # same band, and a long credit would otherwise run under it.
+_CREDIT_PT = 18
 _CREDIT_HEIGHT = Emu(400_000)
 _CREDIT_BOTTOM_GAP = Emu(200_000)
 _BADGE_RESERVE = Emu(2_500_000)   # badge width plus its right margin and a gap
@@ -599,11 +603,17 @@ def _add_credit(slide, text: str):
     """Draw a copyright/permission line as small print at the foot, left-justified."""
     if not text:
         return
+    # ⛔⛔ PINNED BY ITS BOTTOM, NOT ITS TOP. The frame grows DOWNWARD to fit its text,
+    # so a box placed at a fixed top pushes a second credit off the foot of the slide —
+    # and the corpus has a set that carries two. Measuring the lines and lifting the top
+    # keeps the last line on the page whatever the count.
+    lines = text.count('\x0b') + 1
+    needed = Emu(max(int(_CREDIT_HEIGHT), int(lines * _CREDIT_PT * 12700 * 1.25)))
     box = slide.shapes.add_textbox(
         TEXT_LEFT,
-        SLIDE_HEIGHT - _CREDIT_HEIGHT - _CREDIT_BOTTOM_GAP,
+        Emu(int(SLIDE_HEIGHT) - int(needed) - int(_CREDIT_BOTTOM_GAP)),
         Emu(int(SLIDE_WIDTH) - int(TEXT_LEFT) - int(_BADGE_RESERVE)),
-        _CREDIT_HEIGHT,
+        needed,
     )
     box.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
     box.text_frame.word_wrap = True
@@ -611,7 +621,7 @@ def _add_credit(slide, text: str):
     p.text = text
     p.alignment = PP_ALIGN.LEFT
     p.font.name = THEME_FONT
-    p.font.size = Pt(18)
+    p.font.size = Pt(_CREDIT_PT)
     p.font.color.rgb = THEME_TITLE_COLOR
     _set_paragraph_spacing(p, 50)
     _add_shadow(box)
@@ -892,6 +902,28 @@ def _add_hymn_slides(prs, ref: HymnRef, bg_type: str = 'hymn'):
         return
 
     parsed = _parse_hymn_slides(hymn_data)
+
+    # ⭐⭐ EVERY CREDIT GOES TO THE LAST SLIDE. @decision:gold 2026-09-29
+    # It was drawn on whichever slide it came from, which is almost always the FIRST —
+    # and the first slide is the crowded one: it alone carries the title pill, and a
+    # long title wraps that pill onto extra lines and pushes the verse down the page
+    # to meet the credit at the foot. A statement of faith with a six-line opening and
+    # a title that wraps is where the two actually collided.
+    # ⭐ The last slide carries no title and no source badge, so it is the emptiest
+    # slide in the set — and the end is where a credit belongs anyway.
+    # ⚠ MEASURED over every hymn that carries one: 35 first slides ran into the credit,
+    # 5 last slides do.
+    # ⛔ DEDUPLICATED AND ORDER-PRESERVING: a set whose sections repeat the same credit
+    # would otherwise print it three times (TFWS 2257 does), and two genuinely different
+    # credits must both survive (UMH psalter 023 has two).
+    credits: list[str] = []
+    for slide_info in parsed:
+        if slide_info['attribution'] and slide_info['attribution'] not in credits:
+            credits.append(slide_info['attribution'])
+        slide_info['attribution'] = ''
+    if credits:
+        # one per line, in the one text box at the foot
+        parsed[-1]['attribution'] = '\x0b'.join(credits)
     # ⛔ THROUGH _art, NOT THE MODULE CONSTANT. Reading CREED_BG/HYMN_BG directly
     # here bypassed both the per-church override and the wash — the two helpers
     # that do it properly turned out to have no callers on this path at all.
