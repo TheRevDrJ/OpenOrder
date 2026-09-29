@@ -517,8 +517,8 @@ function App() {
     fallback?: { wanted: string; why: string; tail: string }
     /** Passages named in the reference that could not be read at all. */
     problems?: string[]
-    /** One entry per passage, in the order they were written. */
-    passages?: { reference: string; slides: number }[]
+    /** One entry per passage, in the order they were written, with its own verses. */
+    passages?: { reference: string; slides: number; verses: { number: number; text: string }[] }[]
     slides?: unknown[]
   } | null>(null)
   /** ⭐ A reference nothing could be made of. Held SEPARATELY from the preview: the
@@ -1075,11 +1075,30 @@ function App() {
                     of it; you can trim them afterward.
                   </div>
                 )}
-                {scripturePreview.verses.map((v: {number: number, text: string}) => (
-                  <p key={v.number} className="mb-1">
-                    <span className="font-bold text-primary">{v.number}</span>{' '}
-                    {v.text}
-                  </p>
+                {/* ⛔⛔ EACH PASSAGE WEARS ITS REFERENCE, THE WAY ITS SLIDE DOES.
+                    Verses are numbered within their own book, so two passages run
+                    21, 22, 18, 19 — and with nothing between them the reading looks
+                    like one passage that jumps backwards.
+                    ⛔⛔ AND THE KEY MUST CARRY THE PASSAGE. Two books can hold the same
+                    verse number (Mark 2:18 and Isaiah 43:18), so keying on the number
+                    alone collides and React reuses the wrong paragraph.
+                    ⚠ The flat `verses` list is still the fallback: a cached reading
+                    written before passages existed has no grouping to render. */}
+                {(scripturePreview.passages?.length
+                  ? scripturePreview.passages
+                  : [{ reference: scripturePreview.reference ?? '', verses: scripturePreview.verses }]
+                ).map((psg, pi) => (
+                  <div key={`${pi}-${psg.reference}`} className={pi > 0 ? 'mt-3' : ''}>
+                    {psg.reference && (
+                      <div className="font-medium text-primary text-xs mb-1">{psg.reference}</div>
+                    )}
+                    {psg.verses.map((v: { number: number; text: string }) => (
+                      <p key={`${pi}-${v.number}`} className="mb-1">
+                        <span className="font-bold text-primary">{v.number}</span>{' '}
+                        {v.text}
+                      </p>
+                    ))}
+                  </div>
                 ))}
               </div>
             )}

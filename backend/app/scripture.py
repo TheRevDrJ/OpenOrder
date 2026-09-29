@@ -370,7 +370,8 @@ def fetch_scripture(reference: str, translation: str = "BSB") -> dict | None:
             got["slides"][0]["passage_start"] = True
             got["slides"][0]["passage_reference"] = got.get("reference") or reference
             got["passages"] = [{"reference": got.get("reference") or reference,
-                                "slides": len(got["slides"])}]
+                                "slides": len(got["slides"]),
+                                "verses": got.get("verses") or []}]
         return got
 
     passages, problems, all_slides, all_verses, fums_all = [], [], [], [], []
@@ -387,7 +388,11 @@ def fetch_scripture(reference: str, translation: str = "BSB") -> dict | None:
         all_slides.extend(got["slides"])
         all_verses.extend(got.get("verses") or [])
         shown.append(ref_back)
-        passages.append({"reference": ref_back, "slides": len(got["slides"])})
+        # ⭐ THE VERSES RIDE WITH THEIR PASSAGE, not only in the flat list. Two
+        # passages can hold the same verse NUMBER — Mark 2:18 and Isaiah 43:18 — so a
+        # flat list cannot be grouped or even keyed after the fact.
+        passages.append({"reference": ref_back, "slides": len(got["slides"]),
+                         "verses": got.get("verses") or []})
         if got.get("fums"):
             fums_all.append(got["fums"])
         name = name or got.get("translation_name") or ""
