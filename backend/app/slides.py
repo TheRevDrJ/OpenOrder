@@ -593,6 +593,40 @@ def _add_title_pill(slide, title_text: str, top=None, font_size=48):
 # simply dropped it.
 # ⚠ THE WIDTH STOPS SHORT OF THE SOURCE BADGE, which sits bottom-RIGHT. They share the
 # same band, and a long credit would otherwise run under it.
+# ⭐⭐ TEXT IS FITTED TO THE SLIDE AT RENDER TIME. @decision:gold 2026-09-29
+# ⛔⛔ NOTHING CAPS A HYMN'S LINE COUNT AND NOTHING SHOULD. A hymn's slide breaks come
+# from the source deck, and they carry meaning a splitter cannot see — TFWS 2124
+# alternates Leader and All, so a break in the wrong place cuts a call from its
+# response. ⭐ So the LINES are given and the SIZE is ours: when a slide holds more
+# than fits, the type comes down until it does.
+# ⚠ MEASURED, NOT ASSUMED: a 50pt line occupies about 1.08 times its point size in
+# height on these slides — taken off a rendered slide, after an assumed 1.35 produced
+# a false alarm of 148 overflowing slides when the real number was 6.
+# ⭐ CLAMPED AT TODAY'S SIZE, so a slide that already fits is untouched. Only the
+# slides that overflow change, which is what makes this safe to apply everywhere.
+_LINE_LEADING = 1.08
+_LYRIC_PT_MAX = 50
+_LYRIC_PT_MIN = 32      # below this it stops being projectable from the back row
+_FOOT_MARGIN = Emu(400_000)
+
+
+def _fit_pt(num_lines: int, top, has_credit: bool, credit_lines: int = 1,
+            max_pt: int = _LYRIC_PT_MAX) -> int:
+    """The largest size at which `num_lines` fits between `top` and the foot."""
+    if num_lines <= 0:
+        return max_pt
+    if has_credit:
+        credit_block = int(credit_lines * _CREDIT_PT * 12700 * 1.25)
+        # ⚠ A real gap, not a hairline. Fitting the text to end exactly where the credit
+        # begins is correct arithmetic and looks like a collision on a projector.
+        reserve = credit_block + int(_CREDIT_BOTTOM_GAP) + int(Emu(340_000))
+    else:
+        reserve = int(_FOOT_MARGIN)
+    available = int(SLIDE_HEIGHT) - int(top) - reserve
+    pt = available / (num_lines * 12700 * _LINE_LEADING)
+    return max(_LYRIC_PT_MIN, min(max_pt, int(pt)))
+
+
 _CREDIT_PT = 18
 _CREDIT_HEIGHT = Emu(400_000)
 _CREDIT_BOTTOM_GAP = Emu(200_000)
@@ -664,16 +698,13 @@ def _create_hymn_first_slide(prs, slide_info: dict):
         p.font.name = THEME_FONT
         p.font.color.rgb = THEME_TEXT_COLOR
 
-        # Scale font for first slide based on available space
-        num_lyric_lines = len(slide_info['lyrics'])
-        available = SLIDE_HEIGHT - lyrics_top - Emu(600_000)  # reserve for badge
-        line_space = available // max(num_lyric_lines, 1)
-        if line_space >= Emu(685_800):      # ~0.75" per line → 50pt
-            p.font.size = Pt(50)
-        elif line_space >= Emu(594_360):    # ~0.65" → 44pt
-            p.font.size = Pt(44)
-        else:                                # tight → 38pt
-            p.font.size = Pt(38)
+        # ⚫ Was a three-step ladder (50/44/38) that reserved a fixed 600k for the badge
+        # and knew nothing about a credit. It also existed only here, so the slides that
+        # actually overflowed — continuations, which carry no title and so hold more
+        # text — were never fitted at all.
+        p.font.size = Pt(_fit_pt(len(slide_info['lyrics']), lyrics_top,
+                                 bool(slide_info['attribution']),
+                                 slide_info['attribution'].count('\x0b') + 1))
 
         _set_paragraph_spacing(p, 50)
         _add_shadow(lyrics_box)
@@ -715,6 +746,10 @@ def _create_hymn_continuation_slide(prs, slide_info: dict):
             TEXT_LEFT, top, TEXT_WIDTH, Emu(500_000)
         )
         lyrics_box.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+        # ⛔⛔ WRAP, OR A LONG LINE WALKS OFF THE SLIDE. With auto-size and no wrapping
+        # the frame grows sideways to fit its longest line, so a citation ran past the
+        # right edge and was simply cut rather than folded onto a second line.
+        lyrics_box.text_frame.word_wrap = True
         lyrics_box.text_frame.margin_left = MARGIN_LR
         lyrics_box.text_frame.margin_right = MARGIN_LR
         lyrics_box.text_frame.margin_top = MARGIN_TB
@@ -736,14 +771,19 @@ def _create_hymn_continuation_slide(prs, slide_info: dict):
             lyrics_text = '\x0b'.join(slide_info['lyrics'])
             p2.text = lyrics_text
             p2.font.name = THEME_FONT
-            p2.font.size = Pt(50)
+            p2.font.size = Pt(_fit_pt(len(slide_info['lyrics']) + 1, top,
+                                      bool(slide_info.get('attribution')),
+                                      (slide_info.get('attribution') or '').count('\x0b') + 1,
+                                      max_pt=50))
             p2.font.color.rgb = THEME_TEXT_COLOR
             _set_paragraph_spacing(p2, 50)
         else:
             lyrics_text = '\x0b'.join(slide_info['lyrics'])
             p.text = lyrics_text
             p.font.name = THEME_FONT
-            p.font.size = Pt(50)
+            p.font.size = Pt(_fit_pt(len(slide_info['lyrics']), top,
+                                     bool(slide_info.get('attribution')),
+                                     (slide_info.get('attribution') or '').count('\x0b') + 1))
             p.font.color.rgb = THEME_TEXT_COLOR
             _set_paragraph_spacing(p, 50)
 
@@ -773,19 +813,16 @@ def _create_liturgy_first_slide(prs, slide_info: dict, bg_path: Path, slot_for_b
             Emu(8_534_400), Emu(500_000)      # ~9.333 inches wide
         )
         lyrics_box.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+        # ⛔ Wrap, or the frame grows sideways and a long line runs off the slide.
+        lyrics_box.text_frame.word_wrap = True
         lyrics_box.text_frame.margin_left = MARGIN_LR
         lyrics_box.text_frame.margin_right = MARGIN_LR
 
-        # Scale font for first slide based on available space
-        num_lyric_lines = len(slide_info['lyrics'])
-        available = SLIDE_HEIGHT - lyrics_top - Emu(600_000)
-        line_space = available // max(num_lyric_lines, 1)
-        if line_space >= Emu(685_800):
-            lyric_size = 48
-        elif line_space >= Emu(594_360):
-            lyric_size = 42
-        else:
-            lyric_size = 36
+        # ⚫ Was a three-step ladder reserving a fixed 600k and blind to the credit.
+        lyric_size = _fit_pt(len(slide_info['lyrics']), lyrics_top,
+                             bool(slide_info['attribution']),
+                             slide_info['attribution'].count('\x0b') + 1,
+                             max_pt=48)
 
         p = lyrics_box.text_frame.paragraphs[0]
         _build_liturgy_text(lyrics_box.text_frame, slide_info['lyrics'], font_size=lyric_size)
@@ -822,10 +859,21 @@ def _create_liturgy_continuation_slide(prs, slide_info: dict, bg_path: Path, slo
             Emu(8_534_400), Emu(500_000)
         )
         lyrics_box.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+        # ⛔ Wrap, or the frame grows sideways and a long line runs off the slide.
+        lyrics_box.text_frame.word_wrap = True
         lyrics_box.text_frame.margin_left = MARGIN_LR
         lyrics_box.text_frame.margin_right = MARGIN_LR
 
-        _build_liturgy_text(lyrics_box.text_frame, slide_info['lyrics'])
+        # ⛔⛔ THIS PATH HAD NO FIT AT ALL — it drew every creed at a flat 48pt. The
+        # continuation slides are the ones that overflow, because they carry no title
+        # and so hold the most text: a nine-line prayer ran off the foot of the slide
+        # and through the credit.
+        _build_liturgy_text(
+            lyrics_box.text_frame, slide_info['lyrics'],
+            font_size=_fit_pt(len(slide_info['lyrics']), top,
+                              bool(slide_info.get('attribution')),
+                              (slide_info.get('attribution') or '').count('\x0b') + 1,
+                              max_pt=48))
         _add_shadow(lyrics_box)
 
     if bg_path.exists():
