@@ -13,7 +13,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ChoiceDialog } from '@/components/ChoiceDialog'
 import { ServiceTitlePicker } from '@/components/ServiceTitlePicker'
 import { Tooltip } from '@/components/ui/tooltip'
-import { getHealth, saveService, loadService, listServices, uploadHeroImage, downloadUrl, listChurches, getChurchDefaults, generateUrl, listRevisions, revertService, carryHeroImage, type Revision } from '@/lib/api'
+import { getHealth, saveService, loadService, listServices, uploadHeroImage, downloadUrl, listChurches, getChurchDefaults, generateUrl, listRevisions, revertService, carryHeroImage, StaleServiceError, type Revision } from '@/lib/api'
 import type { OrderOfWorship } from '@/types'
 import { emptyOrder, hasContent, serviceFingerprint } from '@/types'
 import { switchChoice } from '@/lib/church-switch'
@@ -98,6 +98,16 @@ function App() {
   // status stay honestly "Unsaved" without spinning, and any edit makes a new object
   // and so retries by itself.
   const failedSave = useRef<OrderOfWorship | null>(null)
+  /** ⭐⭐ OPTIMISTIC CONCURRENCY TOKEN — the mtime of the service file as it stood when
+   *  this window last read or wrote it. Sent with every save; the server refuses (412)
+   *  if the file has moved since. @decision:gold 2026-10-02
+   *  ⛔ NULL MEANS WRITE UNCONDITIONALLY, and that is deliberate: a brand-new service
+   *  has nothing to be stale against, and "Keep mine" works by clearing this rather
+   *  than by adding a force flag that nothing else would ever pass.
+   *  ⚠ A REF, NOT STATE: the autosave effect must read the current value without
+   *  re-arming the timer every time a save updates it. */
+  const baseMtime = useRef<string | null>(null)
+  const [conflict, setConflict] = useState<string | null>(null)
 
   /** ⭐⭐ THE CHURCH SWITCH ASKS, EVERY TIME. @decision:gold 2026-09-26 · FEATURE-016
    *  ⛔ And it is not a setting: the same person needs a different answer on different
@@ -205,13 +215,15 @@ function App() {
         return
       }
 
-      const theirs = await loadService(order.date, id).catch(() => null)
+      const theirsRes = await loadService(order.date, id).catch(() => null)
+      const theirs = theirsRes?.data ?? null
       const mine = hasContent(order)
       const sameAlready = theirs != null && serviceFingerprint(order) === serviceFingerprint({ ...emptyOrder(order.date), ...theirs })
       const name = churches.find(c => c.id === id)?.name ?? id
 
       const load = async () => {
         const t = theirs!
+        baseMtime.current = theirsRes?.mtime ?? null
         setOrder({ ...emptyOrder(order.date), ...t })
         setHeroPreview(t.heroImageFilename ? downloadUrl(t.heroImageFilename) + '?t=' + Date.now() : null)
         setSaveState('saved')
@@ -233,7 +245,11 @@ function App() {
         // overwrites whatever the arriving church had, so the thing being replaced has
         // to be recoverable from Revert.
         try {
-          await saveService(carried, id, theirs ? 'before-church-switch-carry' : undefined)
+          // ⛔ NO TOKEN HERE: this writes the ARRIVING church's file and the token we
+          // hold describes the one we are leaving. Sending it would conflict against
+          // an unrelated file; the fresh one replaces it.
+          baseMtime.current =
+            await saveService(carried, id, theirs ? 'before-church-switch-carry' : undefined)
           setSaveState('saved')
         } catch {
           failedSave.current = carried
@@ -244,13 +260,18 @@ function App() {
 
       const clear = async () => {
         const blank = emptyOrder(order.date)
+        // ⛔ The token still describes the church we are LEAVING. Drop it before the
+        // arriving church's first write, or the first thing typed would conflict
+        // against a file it has nothing to do with.
+        baseMtime.current = null
         setOrder(blank)
         setHeroPreview(null)
         setEmptyOnPurpose(true)
         if (theirs) {
           // Snapshot first: they chose to blank a service that existed.
           try {
-            await saveService(blank, id, 'before-church-switch-clear', true)
+            baseMtime.current =
+              await saveService(blank, id, 'before-church-switch-clear', true, null)
             setSaveState('saved')
           } catch {
             setSaveState('dirty')
@@ -322,7 +343,8 @@ function App() {
       if (!data) return
       setOrder(prev => ({ ...prev, date: data.nextSunday }))
       try {
-        const existing = await loadService(data.nextSunday, remembered)
+        const { data: existing, mtime } = await loadService(data.nextSunday, remembered)
+        baseMtime.current = mtime
         setOrder({ ...emptyOrder(data.nextSunday), ...existing })
         // ⚠ Say so. Without this the status sits blank after a boot load, which
         // reads as "nothing is saved" on a form that was just restored from disk.
@@ -370,7 +392,7 @@ function App() {
     // ⚠ A deliberate clear is the exception and says so.
     if (!hasContent(o) && !emptyOnPurpose) return true
     try {
-      await saveService(o, c, reason, !hasContent(o))
+      baseMtime.current = await saveService(o, c, reason, !hasContent(o), baseMtime.current)
       setSaveState('saved')
       setEmptyOnPurpose(false)   // a loaded form is not a deliberate blank (BUG-022)
       failedSave.current = null
@@ -378,7 +400,11 @@ function App() {
     } catch (e: any) {
       failedSave.current = o
       setSaveState('dirty')
-      setErrorMsg(e?.message ?? 'Could not save this service')
+      // ⛔⛔ A STALE SAVE IS NOT AN ERROR TO DISMISS — it is a question, and it must
+      // return false so the caller keeps what is on screen. Loading another service
+      // on top of unwritten work is exactly the loss this guard exists to stop.
+      if (e instanceof StaleServiceError) setConflict(e.message)
+      else setErrorMsg(e?.message ?? 'Could not save this service')
       return false
     }
   }
@@ -398,14 +424,19 @@ function App() {
     const t = setTimeout(async () => {
       setSaveState('saving')
       try {
-        await saveService(order, church, undefined, !hasContent(order))
+        baseMtime.current =
+          await saveService(order, church, undefined, !hasContent(order), baseMtime.current)
         setSaveState('saved')
         setEmptyOnPurpose(false)   // a loaded form is not a deliberate blank (BUG-022)
         failedSave.current = null
         setPastServices(await listServices(church))
-      } catch {
+      } catch (e: any) {
         failedSave.current = order
         setSaveState('dirty')     // ⛔ never claim saved on a failed write
+        // ⚠ The re-arm guard above (BUG-023) is what stops this becoming a loop: the
+        // same payload will not retry, and an edit makes a new object. So the banner
+        // stays until it is answered instead of flickering once a second.
+        if (e instanceof StaleServiceError) setConflict(e.message)
       }
     }, 800)
     return () => clearTimeout(t)
@@ -420,7 +451,8 @@ function App() {
     setLoadingPast(true)
     try {
       if (!await boundarySave('before-load')) return   // keep what is on screen
-      const data = await loadService(date, c)
+      const { data, mtime } = await loadService(date, c)
+      baseMtime.current = mtime
       setOrder({ ...emptyOrder(date), ...data })
       setHeroPreview(data.heroImageFilename
         ? downloadUrl(data.heroImageFilename) + '?t=' + Date.now() : null)
@@ -474,6 +506,9 @@ function App() {
     // A failed save stops the move — the promise that it is kept has to be true.
     if (!await boundarySave('before-new-service')) return
     const target = newDate
+    // ⛔ A NEW DATE IS A NEW FILE. The token belongs to the service we just left, and
+    // carrying it here would refuse the first save of a service nobody else has.
+    baseMtime.current = null
     setNewDate(null)
     // ⭐ The old date is never cleared. We move to the new one and start it empty.
     setOrder({ ...emptyOrder(target), date: target })
@@ -488,7 +523,8 @@ function App() {
   async function handleRevert(id: string) {
     if (!order.date || !church) return
     try {
-      const data = await revertService(order.date, church, id)
+      const { data, mtime } = await revertService(order.date, church, id)
+      baseMtime.current = mtime
       setOrder({ ...emptyOrder(order.date), ...data })
       setHeroPreview(data.heroImageFilename
         ? downloadUrl(data.heroImageFilename) + '?t=' + Date.now() : null)
@@ -1212,6 +1248,45 @@ function App() {
           <div className="mt-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm flex items-center justify-between">
             <span>{errorMsg}</span>
             <button onClick={() => setErrorMsg(null)} className="ml-4 hover:opacity-70">✕</button>
+          </div>
+        )}
+        {/* ⛔⛔ THE CONFLICT BANNER. Both versions still exist when this is on screen —
+            ours in the form, theirs on disk — so neither button can lose anything that
+            is not shown first. @decision:gold 2026-10-02
+            ⚠ NOT destructive red: nothing has broken and nothing is lost. This is a
+            question, and it is the only notice in the app with actions on it. */}
+        {conflict && (
+          <div className="mt-4 p-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-sm">
+            <div className="font-medium">This service was changed somewhere else.</div>
+            <div className="mt-1 text-muted-foreground">
+              {conflict} Another window, or another computer sharing this folder,
+              saved it first. Your copy is still on screen and theirs is still on disk.
+            </div>
+            <div className="mt-2 flex gap-2">
+              <Button size="sm" variant="outline" onClick={async () => {
+                if (!order.date || !church) return
+                try {
+                  const { data, mtime } = await loadService(order.date, church)
+                  baseMtime.current = mtime
+                  setOrder({ ...emptyOrder(order.date), ...data })
+                  setHeroPreview(data.heroImageFilename
+                    ? downloadUrl(data.heroImageFilename) + '?t=' + Date.now() : null)
+                  setSaveState('saved')
+                  setEmptyOnPurpose(false)
+                  failedSave.current = null
+                  setConflict(null)
+                } catch { setErrorMsg('Could not load the other version') }
+              }}>Load theirs</Button>
+              <Button size="sm" onClick={() => {
+                // ⭐ "Keep mine" is just dropping the token: the next write has nothing
+                // to be stale against and goes through. The snapshot taken at the next
+                // boundary is what makes this reversible.
+                baseMtime.current = null
+                failedSave.current = null
+                setConflict(null)
+                setSaveState('dirty')
+              }}>Keep mine</Button>
+            </div>
           </div>
         )}
         {noticeMsg && (

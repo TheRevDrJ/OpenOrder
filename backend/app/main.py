@@ -188,11 +188,25 @@ def list_services(church: str | None = None):
     return sorted(seen.values(), key=lambda s: s["date"], reverse=True)
 
 
+def _mtime_token(path: Path) -> str:
+    """This file's modification time, exact, as the optimistic-concurrency token.
+
+    ⭐ NANOSECONDS AS A STRING, never a float: a float round-trips through JSON and
+    a query string and can come back a hair different, which would read as a
+    conflict on every save. An integer compares exactly or not at all.
+    """
+    return str(path.stat().st_mtime_ns)
+
+
 @app.get("/api/services/{service_date}")
-def get_service(service_date: str, church: str | None = None):
+def get_service(service_date: str, response: Response, church: str | None = None):
     path = _service_path(service_date, church)
     if not path.exists():
         raise HTTPException(404, "Service not found")
+    # ⭐⭐ THE TOKEN RIDES IN A HEADER, NEVER IN THE BODY. This body IS the saved
+    # file's own shape and the form spreads it straight into `order` — an extra key
+    # here would be written back into the service on the very next save.
+    response.headers["X-Service-Mtime"] = _mtime_token(path)
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -222,7 +236,8 @@ def _has_content(o: OrderOfWorship) -> bool:
 
 @app.post("/api/services/{service_date}")
 def save_service(service_date: str, data: OrderOfWorship, church: str | None = None,
-                 snapshot_reason: str | None = None, allow_empty: bool = False):
+                 snapshot_reason: str | None = None, allow_empty: bool = False,
+                 base_mtime: str | None = None):
     """Save this church's copy. ⭐ Called continuously by the form's autosave.
 
     ⛔⛔ AN EMPTY PAYLOAD NEVER OVERWRITES A SAVED SERVICE UNLESS IT SAYS IT MEANS TO.
@@ -238,6 +253,24 @@ def save_service(service_date: str, data: OrderOfWorship, church: str | None = N
     """
     data.date = service_date
     path = _service_write_path(service_date, church)
+    # ⛔⛔ OPTIMISTIC CONCURRENCY — THE FILE MOVED UNDER US, SO WE DO NOT WRITE.
+    # `base_mtime` is what this client last read or last wrote. If the file on disk no
+    # longer matches it, something else wrote in between: another window, the packaged
+    # app beside the dev server, or a second computer sharing the data folder.
+    # Writing now would win silently, which is the whole failure this exists to stop.
+    # ⭐ 412, NOT 409. The client has to tell this apart from the empty-form refusal
+    # and from "the file is locked", because only this one has a real choice behind it
+    # — load theirs, or keep mine. A single status for three causes is one message.
+    # ⚠ NO TOKEN MEANS NO CHECK, deliberately: a brand-new service has nothing to be
+    # stale against, and "keep mine" works by clearing the token rather than by adding
+    # a force flag nothing else would ever pass.
+    # @decision:gold 2026-10-02
+    if base_mtime and path.exists() and _mtime_token(path) != base_mtime:
+        raise HTTPException(
+            412,
+            f"{path.name} was changed somewhere else since you opened it. "
+            f"Nothing was written.",
+        )
     if not allow_empty and not _has_content(data) and path.exists():
         try:
             with open(path, "r", encoding="utf-8") as f:
@@ -270,7 +303,10 @@ def save_service(service_date: str, data: OrderOfWorship, church: str | None = N
     # @decision:gold 2026-09-25
     if snapshot_reason:
         snapshot(service_date, church, snapshot_reason)
-    return {"saved": True, "path": str(path), "filename": path.name}
+    # ⭐ The fresh token goes back with every successful write, or the next
+    # autosave would conflict against this very save.
+    return {"saved": True, "path": str(path), "filename": path.name,
+            "mtime": _mtime_token(path)}
 
 
 @app.get("/api/services/{service_date}/snapshots")
@@ -295,7 +331,8 @@ def list_snapshots(service_date: str, church: str | None = None):
 
 
 @app.post("/api/services/{service_date}/revert")
-def revert_service(service_date: str, body: dict, church: str | None = None):
+def revert_service(service_date: str, body: dict, response: Response,
+                   church: str | None = None):
     """Restore a snapshot over the live service.
 
     ⭐ The current state is snapshotted FIRST, so reverting is itself undoable —
@@ -307,6 +344,11 @@ def revert_service(service_date: str, body: dict, church: str | None = None):
     snapshot(service_date, church, "before-revert")
     dest = _service_write_path(service_date, church)
     shutil.copy2(snap, dest)
+    # ⚠ A REVERT IS A WRITE, so the client's token is stale the moment this returns —
+    # without a fresh one the next autosave would report a conflict against our own
+    # restore. (`copy2` also carries the snapshot's old mtime onto `dest`, which is
+    # harmless: the token is compared for equality, never for order.)
+    response.headers["X-Service-Mtime"] = _mtime_token(dest)
     with open(dest, "r", encoding="utf-8") as f:
         return json.load(f)
 

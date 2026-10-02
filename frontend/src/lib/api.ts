@@ -29,10 +29,23 @@ export async function listServices(
   return res.json()
 }
 
-export async function loadService(date: string, church: string): Promise<OrderOfWorship> {
+/** ⛔⛔ A STALE SAVE IS THE ONE FAILURE WITH A REAL CHOICE BEHIND IT, so it gets its
+ *  own type. The server answers 412 when the file moved under us (another window, or
+ *  a second computer sharing the data folder) — the caller has to offer "load theirs"
+ *  or "keep mine" rather than showing a red error nobody can act on. */
+export class StaleServiceError extends Error {
+  constructor(message: string) { super(message); this.name = 'StaleServiceError' }
+}
+
+/** ⭐ The token is the file's mtime and it rides in a HEADER, never in the body —
+ *  the body is the saved file's own shape and gets spread straight into the form, so
+ *  an extra key there would be written back into the service on the next save. */
+export async function loadService(
+  date: string, church: string,
+): Promise<{ data: OrderOfWorship; mtime: string | null }> {
   const res = await fetch(`${BASE}/services/${date}${withChurch(church)}`)
   if (!res.ok) throw new Error('Service not found')
-  return res.json()
+  return { data: await res.json(), mtime: res.headers.get('X-Service-Mtime') }
 }
 
 /** `snapshotReason` asks the server to copy the CURRENT saved state aside first —
@@ -43,10 +56,14 @@ export async function saveService(
    *  service over a saved one otherwise (BUG-022) — that guard is what protects the
    *  file from every other writer, not just this form. */
   allowEmpty?: boolean,
-): Promise<void> {
+  /** What this client last read or last wrote. ⛔ Omit it to write unconditionally —
+   *  that is exactly what "keep mine" does, and what a brand-new service has. */
+  baseMtime?: string | null,
+): Promise<string | null> {
   const extra: Record<string, string> = {}
   if (snapshotReason) extra.snapshot_reason = snapshotReason
   if (allowEmpty) extra.allow_empty = 'true'
+  if (baseMtime) extra.base_mtime = baseMtime
   const res = await fetch(`${BASE}/services/${data.date}${withChurch(church, Object.keys(extra).length ? extra : undefined)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -58,8 +75,14 @@ export async function saveService(
   // the case that produces it. @decision:gold 2026-09-25
   if (!res.ok) {
     const detail = await res.json().catch(() => null)
-    throw new Error(detail?.detail ?? `Could not save (${res.status})`)
+    const msg = detail?.detail ?? `Could not save (${res.status})`
+    // ⭐ 412 is the precondition failing, and ONLY that. Kept apart from the 409s —
+    // the empty-form refusal and the locked file — because this is the one the person
+    // answers rather than just reads.
+    if (res.status === 412) throw new StaleServiceError(msg)
+    throw new Error(msg)
   }
+  return (await res.json().catch(() => null))?.mtime ?? null
 }
 
 export interface Revision { id: string; at: string; reason: string }
@@ -70,14 +93,15 @@ export async function listRevisions(date: string, church: string): Promise<Revis
 }
 export async function revertService(
   date: string, church: string, id: string,
-): Promise<OrderOfWorship> {
+): Promise<{ data: OrderOfWorship; mtime: string | null }> {
   const res = await fetch(`${BASE}/services/${date}/revert${withChurch(church)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id }),
   })
   if (!res.ok) throw new Error('Could not revert')
-  return res.json()
+  // ⚠ A revert WRITES, so the token we hold is stale the instant this returns.
+  return { data: await res.json(), mtime: res.headers.get('X-Service-Mtime') }
 }
 
 export async function uploadHeroImage(date: string, file: File, church: string): Promise<string> {
